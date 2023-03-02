@@ -9,7 +9,7 @@
   Phenomenological model of the synapse between the inner hair cell and auditory
   nerve : Long-term adaptation with power-law dynamics," Journal of the
   Acoustical Society of America 126(5): 2390-2412.
-
+ 
   with the modifications described in:
 
   Ibrahim, R. A., and Bruce, I. C. (2010). "Effects of peripheral tuning
@@ -28,41 +28,8 @@
   Please cite these papers if you publish any research
   results obtained with this code or any modified versions of this code.
 
-  Changelog:
-  0.0.11 // a0f27528b0127e77d0e64acf6e0ac9e43d681456 [Helios]
-        Removed power-law zeropadding ("delaypoint") system and moved power-law adaptation
-        into primary loop. Renamed several variables related to the initial "traveling-wave
-        delay" to improve clarity. 
-  0.0.10 // 14a4116e964679d5e864ffda65acbf0f61937087 [Helios]
-        Removed downsampling stage from the IHC/synapse model.
-  0.0.9 // dbeed3c05d6468f961ec679417dc93103a2881ab [Helios]
-        Moved double-exponential adaptation stage into main model loop.
-  0.0.8 // 53c503450b3d6337b41fe5fe4ec6f2f39032815f [Helios]
-        Converted "traveling-wave delay" that accounts for differences in ANF spiking 
-        latency as a function of CF into a sample-wise implementation consisting of a 
-        short delay after middle-ear filtering and before cochlear filtering.
-  0.0.7 // 03ce225a9fc5ae1e8b1deeebf4358d8c1d7f7ac2
-        Removed logic related to `implnt`, which controls whether to use the actual or 
-        approximate implementation of power-law adaptation. Left the argument in the 
-        signature of `model()` for convenience, but it now effectively does nothing.
-  0.0.6 // 703fbaf9a89e1068358edb6769429e9d9f2e72aa [Helios]
-        Added additional model stages after IHC, up to synapse output.
-  0.0.4 // fd04a31c75961d0b0282f8f1e605d3cb54921a69 [Helios]
-        Adjusted formatting and comments in a few underlying C functions (NLogarithm, 
-        IhcLowPass, etc.)
-  0.0.3 // 4c6b89f83f52eeea8318969c1f1b167d18546233 [Helios]
-        Removed nrep as an option from the new model code. If users want to repeat 
-        simulations, they should pass in a repeated stimulus or repeat the call (instead of
-        using the nrep functionality provided in 2014/2018 model code).
-  0.0.2 // 430393b4070a0b047c76e904cf46e2d1a99fd3f0 [Helios]
-        Implemented full IHC signal path into `model()`, adjusted code to allow the caller to 
-        get many time-varying outputs from different model stages as outputs so they can be 
-        inspected post hoc.
-  0.0.1 // 72e5632dd5825e105e6804a0bcf73791116488d2 [Helios]
-        Started process of merging IHCAN.c and Synapse.c, part of the original 2014 model 
-        code, into a single file, model.c. Created a new function, `model()`, intended to
-        implement both the BM/IHC and AN model stages into a single samplewise loop.
-
+  To compare this code to older model versions, please refer to changelog.txt and to the 
+  git commit history. 
 */
 
 #include <stdio.h>
@@ -91,38 +58,28 @@
  */
 void model(double *px, double *randNums, double cf, double tdres, int totalstim,
            double cohc, double cihc, int species, double spont, double noiseType, 
-           double implnt, double *meout, 
-           double *controlout, double *c1out, double *c1vihcout, 
-           double *c2out, double *c2vihcout, double *ihcout, double *synout,
-           double *exponOut, double *powerLawIn, double *sout1, double *sout2, double *(*decimate)(double *, int, int)) {
+           double implnt, double *meout, double *controlout, double *c1out, 
+           double *c1vihcout, double *c2out, double *c2vihcout, double *ihcout, 
+           double *synout, double *exponOut, double *powerLawIn, double *sout1, 
+           double *sout2, double *(*decimate)(double *, int, int)) {
     /* Declare variables used in the cochlear-filtering and hair-cell stage */
     double *tmpgain;
     double bmplace, centerfreq, gain, TauWBMax, TauWBMin, bmTaubm, tauwb, wbgain, 
            lasttmpgain, wbout1, wbout, ohcasym, ihcasym, ohcnonlinout, ohcout, tmptauc1, 
            tauc1, rsigma, wb_gain, c1filterouttmp, c2filterouttmp, c1vihctmp, c2vihctmp,
-           me_curr, delay_transmission;
-    int bmorder, wborder, grd, len_delay_transmission;
-    int n, i; 
+           me_curr, delay_latency;
+    int n, bmorder, wborder, grd, len_delay_latency;
     double Taumin[1],Taumax[1], bmTaumin[1], bmTaumax[1], ratiobm[1];
     int grdelay[1];
 
     /* Declare variables used in the auditory-nerve stage */
-    int z, b;
-    int resamp = (int)ceil(1 / (tdres * 10e3));
-    double incr = 0.0;
-
     double alpha1, beta1, I1, alpha2, beta2, I2, binwidth;
-    int k, j, indx, q;
+    int k, j;
     double synstrength, synslope, CI, CL, PG, CG, VL, PL, VI;
     double cf_factor, PImax, kslope, Ass, Asp, TauR, TauST, Ar_Ast, PTS, Aon,
         AR, AST, Prest, gamma1, gamma2, k1, k2;
     double VI0, VI1, alpha, beta, theta1, theta2, theta3, vsat, tmpst, tmp, PPI,
         CIlast, temp;
-
-    double *synouttmp;
-    double *ihcDims;
-
-    /* Declare variables used in the subcortical stage */
 
     /* Allocate memory for cochlear filtering and hair cell stage */
     tmpgain = (double*) calloc(totalstim, sizeof(double));
@@ -147,20 +104,18 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
     middle_ear(px, tdres, totalstim, species, meout);
 
 	/* Calculate the center frequency for the control-path wideband filter
-	   from the location on basilar membrane, based on Greenwood (JASA 1990) */
+	   from the location on basilar membrane, based on species and Greenwood (JASA 1990) */
 	if (species == 1) {
-        /* Cat frequency shift corresponding to 1.2 mm */
         bmplace = 11.9 * log10(0.80 + cf / 456.0); /* Calculate the location on basilar membrane from CF */
         centerfreq = 456.0*(pow(10,(bmplace+1.2)/11.9)-0.80); /* Shift the center freq */
     }
 	else {
-        /* Human frequency shift corresponding to 1.2 mm */
         bmplace = (35/2.1) * log10(1.0 + cf / 165.4); /* Calculate the location on basilar membrane from CF */
         centerfreq = 165.4*(pow(10,(bmplace+1.2)/(35/2.1))-1.0); /* Shift the center freq */
     }
 
-    /* Calculate parameters associated with cochlear gain */
-	if(species == 1) { 
+    /* Calculate parameters associated with cochlear gain based on species */
+	if (species == 1) { 
         gain = 52.0/2.0*(tanh(2.2*log10(cf/0.6e3)+0.15)+1.0);
     }
     else {
@@ -174,7 +129,6 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 	/* Determine parameters for the ??? */
 	bmorder = 3;
 	Get_tauwb(cf, species, bmorder, Taumax, Taumin);
-	/* taubm = cohc*(Taumax[0]-Taumin[0])+Taumin[0]; */
 
     /* Determine parameters for the signal-path C1 filter */
 	Get_taubm(cf, species, Taumax[0], bmTaumax, bmTaumin, ratiobm);
@@ -182,38 +136,45 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 
     /* Determine parameters for the control-path wideband filter */
 	wborder = 3;
-    TauWBMax = Taumin[0]+0.2*(Taumax[0]-Taumin[0]);
+    TauWBMax = Taumin[0] + 0.2*(Taumax[0]-Taumin[0]);
 	TauWBMin = TauWBMax/Taumax[0]*Taumin[0];
-    tauwb = TauWBMax+(bmTaubm-bmTaumax[0])*(TauWBMax-TauWBMin)/(bmTaumax[0]-bmTaumin[0]);
-	wbgain = gain_groupdelay(tdres,centerfreq,cf,tauwb,grdelay);
+    tauwb = TauWBMax + (bmTaubm-bmTaumax[0])*(TauWBMax-TauWBMin)/(bmTaumax[0]-bmTaumin[0]);
+	wbgain = gain_groupdelay(tdres, centerfreq, cf, tauwb, grdelay);
 	tmpgain[0] = wbgain;
 	lasttmpgain = wbgain;
 
     /* Determine parameters for OHC/IHC transduction nonlinearities */
-	ohcasym  = 7.0;    
-	ihcasym  = 3.0;
+	ohcasym = 7.0;    
+	ihcasym = 3.0;
 
     /* Calculate transmission delay time (to account for measured spike latency) */
-    delay_transmission = delay_cat(cf);  /* Delay time in s */
-    len_delay_transmission = __max(0, (int) ceil(delay_transmission/tdres));  /* Delay time in samples*/
+    delay_latency = delay_cat(cf);  /* Delay time in s */
+    len_delay_latency = __max(0, (int) ceil(delay_latency/tdres));  /* Delay time in samples*/
 
-    /* Set parameters for power-law */
+    /* Set parameters for power-law adaptation */
     binwidth = tdres;
-    alpha1 = 2.5e-6*100e3; beta1 = 5e-4; I1 = 0;
-    alpha2 = 1e-2*100e3; beta2 = 1e-1; I2 = 0;
+    alpha1 = 2.5e-6*100e3; 
+    beta1 = 5e-4; 
+    I1 = 0;
+    alpha2 = 1e-2*100e3; 
+    beta2 = 1e-1; 
+    I2 = 0;
 
-    /* Set parameters for double-exponential adaptation */
-    if (spont==100) cf_factor = __min(800,pow(10,0.29*cf/1e3 + 0.7));
-    if (spont==4)   cf_factor = __min(50,2.5e-4*cf*4+0.2);
-    if (spont==0.1) cf_factor = __min(1.0,2.5e-4*cf*0.1+0.15);
+    /* Set parameters for double-exponential adaptation based on fiber type */
+    if (spont == 100) {
+        cf_factor = __min(800, pow(10, 0.29*cf/1e3 + 0.7));
+    } else if (spont == 4) {
+        cf_factor = __min(50, 2.5e-4*cf*4 + 0.2);
+    } else {
+        cf_factor = __min(1.0, 2.5e-4*cf*0.1 + 0.15);
+    }
 
     PImax  = 0.6;                /* PI2 : Maximum of the PI(PI at steady state) */
     kslope = (1+50.0)/(5+50.0)*cf_factor*20.0*PImax;
     /* Ass    = 300*TWOPI/2*(1+cf/100e3); */  /* Older value: Steady State Firing Rate eq.10 */
     Ass    = 800*(1+cf/100e3);    /* Steady State Firing Rate eq.10 */
 
-    if (implnt==1) Asp = spont*3.0;   /* Spontaneous Firing Rate if actual implementation */
-    if (implnt==0) Asp = spont*2.75; /* Spontaneous Firing Rate if approximate implementation */
+    Asp = spont*3.0;   /* Spontaneous Firing Rate */
     TauR   = 2e-3;               /* Rapid Time Constant eq.10 */
     TauST  = 60e-3;              /* Short Time Constant eq.10 */
     Ar_Ast = 6;                  /* Ratio of Ar/Ast */
@@ -244,8 +205,9 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
     CI  = Asp/Prest;                              /* CI at rest, from eq.A3,eq.A12 */
     CL  = CI*(Prest+PL)/PL;                       /* CL at rest, from eq.1 */
 
-    if(kslope>=0)  vsat = kslope+Prest;
-    tmpst  = log(2)*vsat/Prest;
+     /* TODO What should vsat be when kslope < 0? --- uninitialized risk */
+    if (kslope >= 0) vsat = kslope+Prest;
+    tmpst = log(2)*vsat/Prest;
     if(tmpst<400) synstrength = log(exp(tmpst)-1);
     else synstrength = tmpst;
     synslope = Prest/log(2)*synstrength;
@@ -254,10 +216,10 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
     k = 0;
     for (n=0; n<totalstim; n++) {
         /* Delay signal according to delay time */
-        if ((n - len_delay_transmission) < 0) {
+        if ((n - len_delay_latency) < 0) {
             me_curr = 0.0;
         } else {
-            me_curr = meout[n - len_delay_transmission]; /* TODO Transmission or ?? */
+            me_curr = meout[n - len_delay_latency]; /* TODO Transmission or ?? */
         }
 
         /* Pass signal through control-path filter */
@@ -308,13 +270,13 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 
         /* Apply double-exponential adaptation */
         tmp = synstrength*(ihcout[n]);
-        if(tmp<400) tmp = log(1+exp(tmp));
+        if(tmp<400) tmp = log(1 + exp(tmp));
         PPI = synslope/synstrength*tmp;
         CIlast = CI;
         CI = CI + (tdres/VI)*(-PPI*CI + PL*(CL-CI));
-        CL = CL + (tdres/VL)*(-PL*(CL - CIlast) + PG*(CG - CL));
+        CL = CL + (tdres/VL)*(-PL*(CL-CIlast) + PG*(CG-CL));
         if (CI < 0) {
-            temp = 1/PG+1/PL+1/PPI;
+            temp = 1/PG + 1/PL + 1/PPI;
             CI = CG/(PPI*temp);
             CL = CI*(PPI+PL)/PL;
         }
