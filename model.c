@@ -15,18 +15,22 @@
   Ibrahim, R. A., and Bruce, I. C. (2010). "Effects of peripheral tuning
   on the auditory nerve's representation of speech envelope and temporal fine
   structure cues," in The Neurophysiological Bases of Auditory Perception, eds.
-  E. A. Lopez-Poveda and A. R. Palmer and R. Meddis, Springer, NY, pp. 429�438.
+  E. A. Lopez-Poveda and A. R. Palmer and R. Meddis, Springer, NY, pp. 429-438.
 
   Zilany, M.S.A., Bruce, I.C., Ibrahim, R.A., and Carney, L.H. (2013).
   "Improved parameters and expanded simulation options for a model of the
   auditory periphery," in Abstracts of the 36th ARO Midwinter Research Meeting.
 
+  Zilany, M. S., Bruce, I. C., & Carney, L. H. (2014). Updated parameters and expanded 
+  simulation options for a model of the auditory periphery. The Journal of the Acoustical 
+  Society of America, 135(1), 283-286.
+
   The peripheral stage was modified to include a sample-by-sample efferent gain control 
   loop, which is controlled by an auditory brainstem and midbrain model included in this
   code.
 
-  Please cite these papers if you publish any research
-  results obtained with this code or any modified versions of this code.
+  Please cite these papers if you publish any research results obtained with this code or 
+  any modified versions of this code.
 
   To compare this code to older model versions, please refer to changelog.txt and to the 
   git commit history. 
@@ -54,7 +58,42 @@
 #endif
 
 /**
+ * model
  * 
+ * Simulates peripheral and subcortical responses to a sound-pressure waveform
+ * 
+ * Simulates peripheral (inner hair cell, auditory nerve) and subcortical (cochlear nucleus,
+ * inferior colliculus, medial olivary complex) responses to a sound-pressure waveform using
+ * a modified version of the periphery model of Zilany, Bruce, and Carney (2014) and a
+ * new brainstem and midbrain model described in [[cite]].
+ * 
+ * @param px Sound-pressure waveform (Pa), size (totalstim, )
+ * @param randNums Sample of fractional Gaussian noise, size (totalstim, ), see 2014 paper
+ *   for details on how this noise should be synthesized.
+ * @param cf Characteristic frequency (Hz)
+ * @param tdres Sample time resolution (s), i.e., reciprocal of the sampling rate (1/Hz)
+ * @param totalstim Number of samples in the simulation
+ * @param cohc Scalar value in [0, 1] controlling the maximum [[cohc]]
+ * @param cihc Scalar value in [0, 1] controlling the maximum output of the inner hair cells
+ * @param species Integer indicating what species to simulate (1==cat, 2=human[shera], 3==human[glasberg])
+ * @param spont Float indicating what fiber type to simulate (100.0==HSR, 4.0==MSR, 0.1==LSR)
+ * @param noiseType DEPRECATED
+ * @param implnt DEPRECATED
+ * @param meout Vector to store output of middle-ear filter, size (totalstim, )
+ * @param controlout Vector to store output of control-path filter, size (totalstim, )
+ * @param c1out Vector to store output of signal-path C1 filter, size (totalstim, )
+ * @param c1vihcout Vector to store output of signal-path C1 filter after IHC transduction, 
+ *   size (totalstim, )
+ * @param c2out Vector to store output of signal-path C2 filter, size (totalstim, )
+ * @param c2vihcout Vector to store output of signal-path C2 filter after IHC transduction, 
+ *   size (totalstim, )
+ * @param ihcout Vector to store output of inner hair cell, size (totalstim, )
+ * @param synout Vector to store output of synapse, size (totalstim, )
+ * @param exponOut Vector to store output of exponential adaptation stage, size (totalstim, )
+ * @param powerLawIn DEPRECATED
+ * @param sout1 Vector to store output of slow power-law adaptation stage, size (totalstim, )
+ * @param sout2 Vector to store output of fast power-law adaptation stage, size (totalstim, )
+ * @param decimate DEPRECATED
  */
 void model(double *px, double *randNums, double cf, double tdres, int totalstim,
            double cohc, double cihc, int species, double spont, double noiseType, 
