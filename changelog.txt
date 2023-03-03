@@ -1,41 +1,45 @@
-  0.0.12
-        - Cleaned up a lot of minor formatting inconsistencies
-        - Removed variables that were unused from the code
-        - Tried to elimiate all if...else blocks that did not guarantee that variables were 
-          initialized to avoid unwanted surprises
-  0.0.11
-        - Removed power-law zeropadding ("delaypoint") system 
-        - Moved power-law adaptation into primary loop 
-        - Renamed several variables related to the initial "traveling-wave delay" to improve 
-          clarity
-  0.0.10
-        - Removed downsampling stage from the IHC/synapse model.
-  0.0.9
-        - Moved double-exponential adaptation stage into main model loop.
-  0.0.8
-        - Converted "traveling-wave delay" that accounts for differences in ANF spiking 
-          latency as a function of CF into a sample-wise implementation consisting of a 
-          short delay after middle-ear filtering and before cochlear filtering.
-  0.0.7
-        - Removed logic related to `implnt`, which controls whether to use the actual or 
-          approximate implementation of power-law adaptation (note: left the argument in the 
-          signature of `model()` for convenience, but it now effectively does nothing)
-  0.0.6
-        - Added additional model stages after IHC, up to synapse output
-  0.0.4
-        - Adjusted formatting and comments in a few underlying C functions (NLogarithm, 
-          IhcLowPass, etc.)
-  0.0.3
-        - Removed nrep as an option from the new model code... if users want to repeat 
-          simulations, they should pass in a repeated stimulus or repeat the call (instead 
-          of using the nrep functionality provided in 2014/2018 model code)
-  0.0.2
-        - Implemented full IHC signal path into `model()`
-        - Adjusted code to allow the caller to get many time-varying outputs from different 
-          model stages as outputs so they can be inspected post hoc
-  0.0.1
-        - Started process of merging IHCAN.c and Synapse.c, part of the original 2014 model 
-          code, into a single file, model.c. 
-        - Created a new function, `model()`, intended to implement both the BM/IHC and AN 
-          model stages into a single samplewise loop.
-
+0.0.13 
+      - Improved documentation for main function
+      - Cleaned up main function signature (eliminated noiseType, implnt, powerLawIn,
+        and decimate, since all are no longer relevant)
+      - Got rid of many unnecessary/redundant variables (especially loop indices)
+0.0.12
+      - Cleaned up a lot of minor formatting inconsistencies
+      - Removed variables that were unused from the code
+      - Tried to elimiate all if...else blocks that did not guarantee that variables were 
+        initialized to avoid unwanted surprises
+0.0.11
+      - Removed power-law zeropadding ("delaypoint") system 
+      - Moved power-law adaptation into primary loop 
+      - Renamed several variables related to the initial "traveling-wave delay" to improve 
+        clarity
+0.0.10
+      - Removed downsampling stage from the IHC/synapse model.
+0.0.9
+      - Moved double-exponential adaptation stage into main model loop.
+0.0.8
+      - Converted "traveling-wave delay" that accounts for differences in ANF spiking 
+        latency as a function of CF into a sample-wise implementation consisting of a 
+        short delay after middle-ear filtering and before cochlear filtering.
+0.0.7
+      - Removed logic related to `implnt`, which controls whether to use the actual or 
+        approximate implementation of power-law adaptation (note: left the argument in the 
+        signature of `model()` for convenience, but it now effectively does nothing)
+0.0.6
+      - Added additional model stages after IHC, up to synapse output
+0.0.4
+      - Adjusted formatting and comments in a few underlying C functions (NLogarithm, 
+        IhcLowPass, etc.)
+0.0.3
+      - Removed nrep as an option from the new model code... if users want to repeat 
+        simulations, they should pass in a repeated stimulus or repeat the call (instead 
+        of using the nrep functionality provided in 2014/2018 model code)
+0.0.2
+      - Implemented full IHC signal path into `model()`
+      - Adjusted code to allow the caller to get many time-varying outputs from different 
+        model stages as outputs so they can be inspected post hoc
+0.0.1
+      - Started process of merging IHCAN.c and Synapse.c, part of the original 2014 model 
+        code, into a single file, model.c. 
+      - Created a new function, `model()`, intended to implement both the BM/IHC and AN 
+        model stages into a single samplewise loop.
