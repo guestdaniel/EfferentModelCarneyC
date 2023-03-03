@@ -67,10 +67,11 @@
  * a modified version of the periphery model of Zilany, Bruce, and Carney (2014) and a
  * new brainstem and midbrain model described in [[cite]].
  * 
- * @param px Sound-pressure waveform (Pa), size (totalstim, )
+ * @param px Vector containing sound-pressure waveform (Pa), size (totalstim, )
  * @param randNums Sample of fractional Gaussian noise, size (totalstim, ), see 2014 paper
  *   for details on how this noise should be synthesized.
- * @param cf Characteristic frequency (Hz)
+ * @param cf Vector containing characteristic frequencies for each channel (Hz), 
+ *  size (n_chan, )
  * @param tdres Sample time resolution (s), i.e., reciprocal of the sampling rate (1/Hz)
  * @param totalstim Number of samples in the simulation
  * @param cohc Scalar value in [0, 1] controlling the maximum [[cohc]]
@@ -78,7 +79,7 @@
  * @param species Integer indicating what species to simulate (1==cat, 2=human[shera], 3==human[glasberg])
  * @param spont Float indicating what fiber type to simulate (100.0==HSR, 4.0==MSR, 0.1==LSR)
  * @param meout Vector to store output of middle-ear filter, size (totalstim, )
- * @param controlout Vector to store output of control-path filter, size (totalstim, )
+ * @param controlout Matrix to store output of control-path filter, size (n_chan, totalstim)
  * @param c1out Vector to store output of signal-path C1 filter, size (totalstim, )
  * @param c1vihcout Vector to store output of signal-path C1 filter after IHC transduction, 
  *   size (totalstim, )
@@ -91,12 +92,15 @@
  * @param sout1 Vector to store output of slow power-law adaptation stage, size (totalstim, )
  * @param sout2 Vector to store output of fast power-law adaptation stage, size (totalstim, )
  */
-void model(double *px, double *randNums, double cf, double tdres, int totalstim,
+void model(double *px, double *randNums, double *cf, double tdres, int totalstim,
            double cohc, double cihc, int species, double spont, 
            double *meout, double *controlout, double *c1out, 
            double *c1vihcout, double *c2out, double *c2vihcout, double *ihcout, 
            double *synout, double *exponOut, double *sout1, 
            double *sout2) {
+    /* Delcare new used variables */
+    int idx_chan = 0;
+
     /* Declare variables used in the cochlear-filtering and hair-cell stage */
     double *tmpgain;
     double Taumin[1],Taumax[1], bmTaumin[1], bmTaumax[1], ratiobm[1];
@@ -138,20 +142,20 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 	/* Calculate the center frequency for the control-path wideband filter
 	   from the location on basilar membrane, based on species and Greenwood (JASA 1990) */
 	if (species == 1) {
-        bmplace = 11.9 * log10(0.80 + cf / 456.0); /* Calculate the location on basilar membrane from CF */
+        bmplace = 11.9 * log10(0.80 + cf[idx_chan]/456.0); /* Calculate the location on basilar membrane from CF */
         centerfreq = 456.0 * (pow(10, (bmplace+1.2)/11.9) - 0.80); /* Shift the center freq */
     }
 	else {
-        bmplace = (35/2.1) * log10(1.0 + cf/165.4); /* Calculate the location on basilar membrane from CF */
+        bmplace = (35/2.1) * log10(1.0 + cf[idx_chan]/165.4); /* Calculate the location on basilar membrane from CF */
         centerfreq = 165.4 * (pow(10, (bmplace+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
     }
 
     /* Calculate parameters associated with cochlear gain based on species */
 	if (species == 1) { 
-        gain = 52.0/2.0 * (tanh(2.2*log10(cf/0.6e3)+0.15) + 1.0);
+        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
     }
     else {
-        gain = 52.0/2.0 * (tanh(2.2*log10(cf/0.6e3)+0.15) + 1.0);
+        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
     }
 
     /* Limit gain to range of 15 to 60 dB */
@@ -159,17 +163,17 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
     if (gain < 15.0) gain = 15.0;
 
 	/* Determine parameters for the ??? */
-	Get_tauwb(cf, species, 3, Taumax, Taumin);
+	Get_tauwb(cf[idx_chan], species, 3, Taumax, Taumin);
 
     /* Determine parameters for the signal-path C1 filter */
-	Get_taubm(cf, species, Taumax[0], bmTaumax, bmTaumin, ratiobm);
+	Get_taubm(cf[idx_chan], species, Taumax[0], bmTaumax, bmTaumin, ratiobm);
 	bmTaubm = cohc*(bmTaumax[0]-bmTaumin[0])+bmTaumin[0];
 
     /* Determine parameters for the control-path wideband filter */
     TauWBMax = Taumin[0] + 0.2*(Taumax[0]-Taumin[0]);
 	TauWBMin = TauWBMax/Taumax[0]*Taumin[0];
     tauwb = TauWBMax + (bmTaubm-bmTaumax[0])*(TauWBMax-TauWBMin)/(bmTaumax[0]-bmTaumin[0]);
-	wbgain = gain_groupdelay(tdres, centerfreq, cf, tauwb, grdelay);
+	wbgain = gain_groupdelay(tdres, centerfreq, cf[idx_chan], tauwb, grdelay);
 	tmpgain[0] = wbgain;
 	lasttmpgain = wbgain;
 
@@ -178,7 +182,7 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 	ihcasym = 3.0;
 
     /* Calculate latency delay time (to account for measured spike latency) */
-    delay_latency = delay_cat(cf);  /* Delay time in s */
+    delay_latency = delay_cat(cf[idx_chan]);  /* Delay time in s */
     len_delay_latency = __max(0, (int) ceil(delay_latency/tdres));  /* Delay time in samples*/
 
     /* Set parameters for power-law adaptation */
@@ -191,17 +195,17 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 
     /* Set parameters for double-exponential adaptation based on fiber type */
     if (spont == 100) {
-        cf_factor = __min(800, pow(10, 0.29*cf/1e3 + 0.7));
+        cf_factor = __min(800, pow(10, 0.29*cf[idx_chan]/1e3 + 0.7));
     } else if (spont == 4) {
-        cf_factor = __min(50, 2.5e-4*cf*4 + 0.2);
+        cf_factor = __min(50, 2.5e-4*cf[idx_chan]*4 + 0.2);
     } else {
-        cf_factor = __min(1.0, 2.5e-4*cf*0.1 + 0.15);
+        cf_factor = __min(1.0, 2.5e-4*cf[idx_chan]*0.1 + 0.15);
     }
 
     PImax  = 0.6;                /* PI2 : Maximum of the PI(PI at steady state) */
     kslope = (1+50.0)/(5+50.0)*cf_factor*20.0*PImax;
     /* Ass    = 300*TWOPI/2*(1+cf/100e3); */  /* Older value: Steady State Firing Rate eq.10 */
-    Ass    = 800*(1+cf/100e3);    /* Steady State Firing Rate eq.10 */
+    Ass    = 800*(1+cf[idx_chan]/100e3);    /* Steady State Firing Rate eq.10 */
 
     Asp = spont*3.0;   /* Spontaneous Firing Rate */
     TauR   = 2e-3;               /* Rapid Time Constant eq.10 */
@@ -251,7 +255,7 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 
         /* Pass signal through control-path filter */
         wbout1 = WbGammaTone(me_curr, tdres, centerfreq, n, tauwb, wbgain, 3);
-        wbout = pow((tauwb/TauWBMax), 3) * wbout1 * 10e3 *__max(1, cf/5e3);
+        wbout = pow((tauwb/TauWBMax), 3) * wbout1 * 10e3 *__max(1, cf[idx_chan]/5e3);
 
         /* Pass the control-path signal through the OHC model (nonlinear transduction and 
            lowpass filtering) */
@@ -266,7 +270,7 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 
 		tauwb = TauWBMax + (tauc1-bmTaumax[0])*(TauWBMax-TauWBMin)/(bmTaumax[0]-bmTaumin[0]);
 
-        wb_gain = gain_groupdelay(tdres, centerfreq, cf, tauwb, grdelay);
+        wb_gain = gain_groupdelay(tdres, centerfreq, cf[idx_chan], tauwb, grdelay);
 
 		grd = grdelay[0];
 
@@ -281,17 +285,17 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 		lasttmpgain = wbgain;
 
         /* Apply signal-path C1 filter */
-	    c1filterouttmp = C1ChirpFilt(me_curr, tdres, cf, n, bmTaumax[0], rsigma);
+	    c1filterouttmp = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[0], rsigma);
         c1out[n] = c1filterouttmp;  /* store sample output in vector */
 
         /* Apply parallel-path C2 filter */
-		c2filterouttmp  = C2ChirpFilt(me_curr, tdres, cf, n, bmTaumax[0], 1/ratiobm[0]);
+		c2filterouttmp  = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[0], 1/ratiobm[0]);
         c2out[n] = c2filterouttmp;  /* store sample output in vector */
 
 	    /* Apply IHC model: NL input-output function and lowpass filtering */
-        c1vihctmp  = NLogarithm(cihc*c1filterouttmp, 0.1, ihcasym, cf);
+        c1vihctmp  = NLogarithm(cihc*c1filterouttmp, 0.1, ihcasym, cf[idx_chan]);
         c1vihcout[n] = c1vihctmp;  /* store sample output in vector */
-		c2vihctmp = -NLogarithm(c2filterouttmp*fabs(c2filterouttmp)*cf/10*cf/2e3, 0.2, 1.0, cf); /* C2 transduction output */
+		c2vihctmp = -NLogarithm(c2filterouttmp*fabs(c2filterouttmp)*cf[idx_chan]/10*cf[idx_chan]/2e3, 0.2, 1.0, cf[idx_chan]); /* C2 transduction output */
         c2vihcout[n] = c2vihctmp;  /* store sample output in vector */
         ihcout[n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7);
 
