@@ -105,14 +105,13 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
            lasttmpgain, wbout1, wbout, ohcasym, ihcasym, ohcnonlinout, ohcout, tmptauc1, 
            tauc1, rsigma, wb_gain, c1filterouttmp, c2filterouttmp, c1vihctmp, c2vihctmp,
            me_curr, delay_latency;
-    int n, grd, len_delay_latency;
+    int grd, len_delay_latency;
 
     /* Declare variables used in the auditory-nerve stage */
     double alpha1, beta1, I1, alpha2, beta2, I2, synstrength, synslope, CI, CL, PG, CG, VL, 
         PL, VI, cf_factor, PImax, kslope, Ass, Asp, TauR, TauST, Ar_Ast, PTS, Aon, AR, AST, 
         Prest, gamma1, gamma2, k1, k2, VI0, VI1, alpha, beta, theta1, theta2, theta3, vsat, 
         tmpst, tmp, PPI, CIlast, temp;
-    int k, j;
 
     /* Allocate memory for cochlear filtering and hair cell stage */
     tmpgain = (double*) calloc(totalstim, sizeof(double));
@@ -242,8 +241,7 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
     synslope = Prest/log(2)*synstrength;
 
     /* Compute the main model loop*/
-    k = 0;
-    for (n=0; n<totalstim; n++) {
+    for (int n=0; n<totalstim; n++) {
         /* Delay signal according to delay time */
         if ((n - len_delay_latency) < 0) {
             me_curr = 0.0;
@@ -312,15 +310,14 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
         exponOut[n] = CI*PPI;
 
         /* Apply power-law adaptation */
-        sout1[k]  = __max(0, exponOut[n] + randNums[n] - alpha1*I1);
-        sout2[k] = __max(0, exponOut[n] - alpha2 * I2);
+        sout1[n]  = __max(0, exponOut[n] + randNums[n] - alpha1*I1);
+        sout2[n] = __max(0, exponOut[n] - alpha2 * I2);
         I1 = 0; I2 = 0;
-        for (j=0; j<k+1; ++j) {
-            I1 += (sout1[j])*tdres/((k-j)*tdres + beta1);
-            I2 += (sout2[j])*tdres/((k-j)*tdres + beta2);
+        for (int j = 0; j < n+1; ++j) {
+            I1 += (sout1[j])*tdres/((n-j)*tdres + beta1);
+            I2 += (sout2[j])*tdres/((n-j)*tdres + beta2);
         }
-        synout[k] = sout1[k] + sout2[k];
-        k = k+1;
+        synout[n] = sout1[n] + sout2[n];
     }
 
     /* Free dynamic memory */
