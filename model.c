@@ -77,8 +77,6 @@
  * @param cihc Scalar value in [0, 1] controlling the maximum output of the inner hair cells
  * @param species Integer indicating what species to simulate (1==cat, 2=human[shera], 3==human[glasberg])
  * @param spont Float indicating what fiber type to simulate (100.0==HSR, 4.0==MSR, 0.1==LSR)
- * @param noiseType DEPRECATED
- * @param implnt DEPRECATED
  * @param meout Vector to store output of middle-ear filter, size (totalstim, )
  * @param controlout Vector to store output of control-path filter, size (totalstim, )
  * @param c1out Vector to store output of signal-path C1 filter, size (totalstim, )
@@ -90,17 +88,15 @@
  * @param ihcout Vector to store output of inner hair cell, size (totalstim, )
  * @param synout Vector to store output of synapse, size (totalstim, )
  * @param exponOut Vector to store output of exponential adaptation stage, size (totalstim, )
- * @param powerLawIn DEPRECATED
  * @param sout1 Vector to store output of slow power-law adaptation stage, size (totalstim, )
  * @param sout2 Vector to store output of fast power-law adaptation stage, size (totalstim, )
- * @param decimate DEPRECATED
  */
 void model(double *px, double *randNums, double cf, double tdres, int totalstim,
-           double cohc, double cihc, int species, double spont, double noiseType, 
-           double implnt, double *meout, double *controlout, double *c1out, 
+           double cohc, double cihc, int species, double spont, 
+           double *meout, double *controlout, double *c1out, 
            double *c1vihcout, double *c2out, double *c2vihcout, double *ihcout, 
-           double *synout, double *exponOut, double *powerLawIn, double *sout1, 
-           double *sout2, double *(*decimate)(double *, int, int)) {
+           double *synout, double *exponOut, double *sout1, 
+           double *sout2) {
     /* Declare variables used in the cochlear-filtering and hair-cell stage */
     double *tmpgain;
     double bmplace, centerfreq, gain, TauWBMax, TauWBMin, bmTaubm, tauwb, wbgain, 
