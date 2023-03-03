@@ -68,12 +68,12 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
            lasttmpgain, wbout1, wbout, ohcasym, ihcasym, ohcnonlinout, ohcout, tmptauc1, 
            tauc1, rsigma, wb_gain, c1filterouttmp, c2filterouttmp, c1vihctmp, c2vihctmp,
            me_curr, delay_latency;
-    int n, bmorder, wborder, grd, len_delay_latency;
+    int n, grd, len_delay_latency;
     double Taumin[1],Taumax[1], bmTaumin[1], bmTaumax[1], ratiobm[1];
     int grdelay[1];
 
     /* Declare variables used in the auditory-nerve stage */
-    double alpha1, beta1, I1, alpha2, beta2, I2, binwidth;
+    double alpha1, beta1, I1, alpha2, beta2, I2;
     int k, j;
     double synstrength, synslope, CI, CL, PG, CG, VL, PL, VI;
     double cf_factor, PImax, kslope, Ass, Asp, TauR, TauST, Ar_Ast, PTS, Aon,
@@ -127,15 +127,13 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
     if (gain < 15.0) gain = 15.0;
 
 	/* Determine parameters for the ??? */
-	bmorder = 3;
-	Get_tauwb(cf, species, bmorder, Taumax, Taumin);
+	Get_tauwb(cf, species, 3, Taumax, Taumin);
 
     /* Determine parameters for the signal-path C1 filter */
 	Get_taubm(cf, species, Taumax[0], bmTaumax, bmTaumin, ratiobm);
 	bmTaubm = cohc*(bmTaumax[0]-bmTaumin[0])+bmTaumin[0];
 
     /* Determine parameters for the control-path wideband filter */
-	wborder = 3;
     TauWBMax = Taumin[0] + 0.2*(Taumax[0]-Taumin[0]);
 	TauWBMin = TauWBMax/Taumax[0]*Taumin[0];
     tauwb = TauWBMax + (bmTaubm-bmTaumax[0])*(TauWBMax-TauWBMin)/(bmTaumax[0]-bmTaumin[0]);
@@ -147,12 +145,11 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 	ohcasym = 7.0;    
 	ihcasym = 3.0;
 
-    /* Calculate transmission delay time (to account for measured spike latency) */
+    /* Calculate latency delay time (to account for measured spike latency) */
     delay_latency = delay_cat(cf);  /* Delay time in s */
     len_delay_latency = __max(0, (int) ceil(delay_latency/tdres));  /* Delay time in samples*/
 
     /* Set parameters for power-law adaptation */
-    binwidth = tdres;
     alpha1 = 2.5e-6*100e3; 
     beta1 = 5e-4; 
     I1 = 0;
@@ -219,12 +216,12 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
         if ((n - len_delay_latency) < 0) {
             me_curr = 0.0;
         } else {
-            me_curr = meout[n - len_delay_latency]; /* TODO Transmission or ?? */
+            me_curr = meout[n - len_delay_latency]; 
         }
 
         /* Pass signal through control-path filter */
-        wbout1 = WbGammaTone(me_curr, tdres, centerfreq, n, tauwb, wbgain, wborder);
-        wbout = pow((tauwb/TauWBMax), wborder) * wbout1 * 10e3 *__max(1, cf/5e3);
+        wbout1 = WbGammaTone(me_curr, tdres, centerfreq, n, tauwb, wbgain, 3);
+        wbout = pow((tauwb/TauWBMax), 3) * wbout1 * 10e3 *__max(1, cf/5e3);
 
         /* Pass the control-path signal through the OHC model (nonlinear transduction and 
            lowpass filtering) */
@@ -287,8 +284,8 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
         sout2[k] = __max(0, exponOut[n] - alpha2 * I2);
         I1 = 0; I2 = 0;
         for (j=0; j<k+1; ++j) {
-            I1 += (sout1[j])*binwidth/((k-j)*binwidth + beta1);
-            I2 += (sout2[j])*binwidth/((k-j)*binwidth + beta2);
+            I1 += (sout1[j])*tdres/((k-j)*tdres + beta1);
+            I2 += (sout2[j])*tdres/((k-j)*tdres + beta2);
         }
         synout[k] = sout1[k] + sout2[k];
         k = k+1;
