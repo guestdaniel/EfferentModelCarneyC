@@ -106,8 +106,8 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
     double Taumin[1],Taumax[1], bmTaumin[1], bmTaumax[1], ratiobm[1];
     int grdelay[1];
     double bmplace, centerfreq, gain, TauWBMax, TauWBMin, bmTaubm, tauwb, wbgain, 
-           lasttmpgain, wbout1, wbout, ohcasym, ihcasym, ohcnonlinout, ohcout, tmptauc1, 
-           tauc1, rsigma, wb_gain, c1filterouttmp, c2filterouttmp, c1vihctmp, c2vihctmp,
+           lasttmpgain, wbout1, wbout, ohcasym, ihcasym, ohcnonlinout, ohcout, 
+           tauc1, rsigma, wb_gain, c1vihctmp, c2vihctmp,
            me_curr, delay_latency;
     int grd, len_delay_latency;
 
@@ -261,11 +261,10 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
            lowpass filtering) */
         ohcnonlinout = Boltzman(wbout, ohcasym, 12.0, 5.0, 5.0);
 		ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2);
-		tmptauc1 = NLafterohc(ohcout, bmTaumin[0], bmTaumax[0], ohcasym);
-        controlout[n] = tmptauc1;  /* store sample output in vector */
+		controlout[n] = NLafterohc(ohcout, bmTaumin[0], bmTaumax[0], ohcasym);
 
         /* Determine time constant and shift of C1 filter poles based on output of OHCs */
-		tauc1 = cohc*(tmptauc1-bmTaumin[0]) + bmTaumin[0]; 
+		tauc1 = cohc*(controlout[n]-bmTaumin[0]) + bmTaumin[0]; 
 		rsigma = 1/tauc1 - 1/bmTaumax[0];
 
 		tauwb = TauWBMax + (tauc1-bmTaumax[0])*(TauWBMax-TauWBMin)/(bmTaumax[0]-bmTaumin[0]);
@@ -285,17 +284,15 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 		lasttmpgain = wbgain;
 
         /* Apply signal-path C1 filter */
-	    c1filterouttmp = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[0], rsigma);
-        c1out[n] = c1filterouttmp;  /* store sample output in vector */
+	    c1out[n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[0], rsigma);
 
         /* Apply parallel-path C2 filter */
-		c2filterouttmp  = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[0], 1/ratiobm[0]);
-        c2out[n] = c2filterouttmp;  /* store sample output in vector */
+		c2out[n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[0], 1/ratiobm[0]);
 
 	    /* Apply IHC model: NL input-output function and lowpass filtering */
-        c1vihctmp  = NLogarithm(cihc*c1filterouttmp, 0.1, ihcasym, cf[idx_chan]);
+        c1vihctmp  = NLogarithm(cihc*c1out[n], 0.1, ihcasym, cf[idx_chan]);
         c1vihcout[n] = c1vihctmp;  /* store sample output in vector */
-		c2vihctmp = -NLogarithm(c2filterouttmp*fabs(c2filterouttmp)*cf[idx_chan]/10*cf[idx_chan]/2e3, 0.2, 1.0, cf[idx_chan]); /* C2 transduction output */
+		c2vihctmp = -NLogarithm(c2out[n]*fabs(c2out[n])*cf[idx_chan]/10*cf[idx_chan]/2e3, 0.2, 1.0, cf[idx_chan]); /* C2 transduction output */
         c2vihcout[n] = c2vihctmp;  /* store sample output in vector */
         ihcout[n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7);
 
