@@ -99,22 +99,20 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
            double *sout2) {
     /* Declare variables used in the cochlear-filtering and hair-cell stage */
     double *tmpgain;
+    double Taumin[1],Taumax[1], bmTaumin[1], bmTaumax[1], ratiobm[1];
+    int grdelay[1];
     double bmplace, centerfreq, gain, TauWBMax, TauWBMin, bmTaubm, tauwb, wbgain, 
            lasttmpgain, wbout1, wbout, ohcasym, ihcasym, ohcnonlinout, ohcout, tmptauc1, 
            tauc1, rsigma, wb_gain, c1filterouttmp, c2filterouttmp, c1vihctmp, c2vihctmp,
            me_curr, delay_latency;
     int n, grd, len_delay_latency;
-    double Taumin[1],Taumax[1], bmTaumin[1], bmTaumax[1], ratiobm[1];
-    int grdelay[1];
 
     /* Declare variables used in the auditory-nerve stage */
-    double alpha1, beta1, I1, alpha2, beta2, I2;
+    double alpha1, beta1, I1, alpha2, beta2, I2, synstrength, synslope, CI, CL, PG, CG, VL, 
+        PL, VI, cf_factor, PImax, kslope, Ass, Asp, TauR, TauST, Ar_Ast, PTS, Aon, AR, AST, 
+        Prest, gamma1, gamma2, k1, k2, VI0, VI1, alpha, beta, theta1, theta2, theta3, vsat, 
+        tmpst, tmp, PPI, CIlast, temp;
     int k, j;
-    double synstrength, synslope, CI, CL, PG, CG, VL, PL, VI;
-    double cf_factor, PImax, kslope, Ass, Asp, TauR, TauST, Ar_Ast, PTS, Aon,
-        AR, AST, Prest, gamma1, gamma2, k1, k2;
-    double VI0, VI1, alpha, beta, theta1, theta2, theta3, vsat, tmpst, tmp, PPI,
-        CIlast, temp;
 
     /* Allocate memory for cochlear filtering and hair cell stage */
     tmpgain = (double*) calloc(totalstim, sizeof(double));
@@ -142,19 +140,19 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
 	   from the location on basilar membrane, based on species and Greenwood (JASA 1990) */
 	if (species == 1) {
         bmplace = 11.9 * log10(0.80 + cf / 456.0); /* Calculate the location on basilar membrane from CF */
-        centerfreq = 456.0*(pow(10,(bmplace+1.2)/11.9)-0.80); /* Shift the center freq */
+        centerfreq = 456.0 * (pow(10, (bmplace+1.2)/11.9) - 0.80); /* Shift the center freq */
     }
 	else {
-        bmplace = (35/2.1) * log10(1.0 + cf / 165.4); /* Calculate the location on basilar membrane from CF */
-        centerfreq = 165.4*(pow(10,(bmplace+1.2)/(35/2.1))-1.0); /* Shift the center freq */
+        bmplace = (35/2.1) * log10(1.0 + cf/165.4); /* Calculate the location on basilar membrane from CF */
+        centerfreq = 165.4 * (pow(10, (bmplace+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
     }
 
     /* Calculate parameters associated with cochlear gain based on species */
 	if (species == 1) { 
-        gain = 52.0/2.0*(tanh(2.2*log10(cf/0.6e3)+0.15)+1.0);
+        gain = 52.0/2.0 * (tanh(2.2*log10(cf/0.6e3)+0.15) + 1.0);
     }
     else {
-        gain = 52.0/2.0*(tanh(2.2*log10(cf/0.6e3)+0.15)+1.0);
+        gain = 52.0/2.0 * (tanh(2.2*log10(cf/0.6e3)+0.15) + 1.0);
     }
 
     /* Limit gain to range of 15 to 60 dB */
@@ -237,7 +235,6 @@ void model(double *px, double *randNums, double cf, double tdres, int totalstim,
     CI  = Asp/Prest;                              /* CI at rest, from eq.A3,eq.A12 */
     CL  = CI*(Prest+PL)/PL;                       /* CL at rest, from eq.1 */
 
-     /* TODO What should vsat be when kslope < 0? --- uninitialized risk */
     if (kslope >= 0) vsat = kslope+Prest;
     tmpst = log(2)*vsat/Prest;
     if(tmpst<400) synstrength = log(exp(tmpst)-1);
