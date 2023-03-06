@@ -108,7 +108,7 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
         tmpgain[i] = (double*) calloc(totalstim, sizeof(double));
     }
 
-    /* Delcare variables for the BM/IHC stage to temporarily store outputs */
+    /* Declare variables for the BM/IHC stage to temporarily store outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, c2vihctmp,
            me_curr;
 
@@ -119,11 +119,22 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
            delay_latency[n_chan], lasttmpgain[n_chan];
     int grdelay[n_chan], len_delay_latency[n_chan];
 
-    /* Declare variables used in the auditory-nerve stage */
-    double alpha1, beta1, I1, alpha2, beta2, I2, synstrength, synslope, CI, CL, PG, CG, VL, 
-        PL, VI, cf_factor, PImax, kslope, Ass, Asp, TauR, TauST, Ar_Ast, PTS, Aon, AR, AST, 
-        Prest, gamma1, gamma2, k1, k2, VI0, VI1, alpha, beta, theta1, theta2, theta3, vsat, 
-        tmpst, tmp, PPI, CIlast, temp;
+    /* Temporary */
+    double tmp, PPI, CIlast, temp;
+
+    /* Declare variables used in the AN stage that are fixed across channels */
+    double alpha1, beta1, alpha2, beta2, I1, I2, PImax, Asp, TauR, TauST, Ar_Ast, PTS,
+           k1, k2;
+
+    /* Declare variables used in the AN stage that vary by channel */
+    double cf_factor[n_chan], kslope[n_chan], Ass[n_chan], Aon[n_chan], AR[n_chan],
+           AST[n_chan], Prest[n_chan], CG[n_chan], gamma1[n_chan], gamma2[n_chan],
+           VI0[n_chan], VI1[n_chan], VI[n_chan], alpha[n_chan], beta[n_chan], 
+           theta1[n_chan], theta2[n_chan], theta3[n_chan], PL[n_chan], PG[n_chan],
+           CI[n_chan], CL[n_chan], VL[n_chan], vsat[n_chan], tmpst[n_chan], 
+           synstrength[n_chan], synslope[n_chan];
+
+    /* Declare variables used in the AN stage to temporarily store outputs */
 
     /* Allocate memory for cochlear filtering and hair cell stage */
 
@@ -185,62 +196,61 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 
     /* Set parameters for power-law adaptation */
     alpha1 = 2.5e-6*100e3; 
-    beta1 = 5e-4; 
-    I1 = 0;
+    beta1  = 5e-4; 
+    I1     = 0;
     alpha2 = 1e-2*100e3; 
-    beta2 = 1e-1; 
-    I2 = 0;
+    beta2  = 1e-1; 
+    I2     = 0;
 
-    /* Set parameters for double-exponential adaptation based on fiber type */
+    /* Set parameters for double-exponential adaptation (based on fiber type / spont) */
     if (spont == 100) {
-        cf_factor = __min(800, pow(10, 0.29*cf[idx_chan]/1e3 + 0.7));
+        cf_factor[idx_chan] = __min(800, pow(10, 0.29*cf[idx_chan]/1e3 + 0.7));
     } else if (spont == 4) {
-        cf_factor = __min(50, 2.5e-4*cf[idx_chan]*4 + 0.2);
+        cf_factor[idx_chan] = __min(50, 2.5e-4*cf[idx_chan]*4 + 0.2);
     } else {
-        cf_factor = __min(1.0, 2.5e-4*cf[idx_chan]*0.1 + 0.15);
+        cf_factor[idx_chan] = __min(1.0, 2.5e-4*cf[idx_chan]*0.1 + 0.15);
     }
-
+    
     PImax  = 0.6;                /* PI2 : Maximum of the PI(PI at steady state) */
-    kslope = (1+50.0)/(5+50.0)*cf_factor*20.0*PImax;
-    /* Ass    = 300*TWOPI/2*(1+cf/100e3); */  /* Older value: Steady State Firing Rate eq.10 */
-    Ass    = 800*(1+cf[idx_chan]/100e3);    /* Steady State Firing Rate eq.10 */
-
-    Asp = spont*3.0;   /* Spontaneous Firing Rate */
+    Asp = spont*3.0;             /* Spontaneous Firing Rate */
     TauR   = 2e-3;               /* Rapid Time Constant eq.10 */
     TauST  = 60e-3;              /* Short Time Constant eq.10 */
     Ar_Ast = 6;                  /* Ratio of Ar/Ast */
     PTS    = 3;                  /* Peak to Steady State Ratio, characteristic of PSTH */
-
-    Aon    = PTS*Ass;                          /* Onset rate = Ass+Ar+Ast eq.10 */
-    AR     = (Aon-Ass)*Ar_Ast/(1+Ar_Ast);      /* Rapid component magnitude: eq.10 */
-    AST    = Aon-Ass-AR;                       /* Short time component: eq.10 */
-    Prest  = PImax/Aon*Asp;                    /* eq.A15 */
-    CG  = (Asp*(Aon-Asp))/(Aon*Prest*(1-Asp/Ass));    /* eq.A16 */
-    gamma1 = CG/Asp;                           /* eq.A19 */
-    gamma2 = CG/Ass;                           /* eq.A20 */
     k1     = -1/TauR;                          /* eq.8 & eq.10 */
     k2     = -1/TauST;                         /* eq.8 & eq.10 */
+
+    kslope[idx_chan] = (1+50.0)/(5+50.0)*cf_factor[idx_chan]*20.0*PImax;
+    Ass[idx_chan] = 800*(1+cf[idx_chan]/100e3);    /* Steady State Firing Rate eq.10 */
+
+    Aon[idx_chan] = PTS*Ass[idx_chan];                          /* Onset rate = Ass+Ar+Ast eq.10 */
+    AR[idx_chan] = (Aon[idx_chan]-Ass[idx_chan])*Ar_Ast/(1+Ar_Ast);      /* Rapid component magnitude: eq.10 */
+    AST[idx_chan] = Aon[idx_chan]-Ass[idx_chan]-AR[idx_chan];                       /* Short time component: eq.10 */
+    Prest[idx_chan] = PImax/Aon[idx_chan]*Asp;                    /* eq.A15 */
+    CG[idx_chan] = (Asp*(Aon[idx_chan]-Asp))/(Aon[idx_chan]*Prest[idx_chan]*(1-Asp/Ass[idx_chan]));    /* eq.A16 */
+    gamma1[idx_chan] = CG[idx_chan]/Asp;                           /* eq.A19 */
+    gamma2[idx_chan] = CG[idx_chan]/Ass[idx_chan];                           /* eq.A20 */
             /* eq.A21 & eq.A22 */
-    VI0    = (1-PImax/Prest)/(gamma1*(AR*(k1-k2)/CG/PImax+k2/Prest/gamma1-k2/PImax/gamma2));
-    VI1    = (1-PImax/Prest)/(gamma1*(AST*(k2-k1)/CG/PImax+k1/Prest/gamma1-k1/PImax/gamma2));
-    VI  = (VI0+VI1)/2;
-    alpha  = gamma2/k1/k2;       /* eq.A23,eq.A24 or eq.7 */
-    beta   = -(k1+k2)*alpha;     /* eq.A23 or eq.7 */
-    theta1 = alpha*PImax/VI;
-    theta2 = VI/PImax;
-    theta3 = gamma2-1/PImax;
+    VI0[idx_chan]    = (1-PImax/Prest[idx_chan])/(gamma1[idx_chan]*(AR[idx_chan]*(k1-k2)/CG[idx_chan]/PImax+k2/Prest[idx_chan]/gamma1[idx_chan]-k2/PImax/gamma2[idx_chan]));
+    VI1[idx_chan]    = (1-PImax/Prest[idx_chan])/(gamma1[idx_chan]*(AST[idx_chan]*(k2-k1)/CG[idx_chan]/PImax+k1/Prest[idx_chan]/gamma1[idx_chan]-k1/PImax/gamma2[idx_chan]));
+    VI[idx_chan]  = (VI0[idx_chan]+VI1[idx_chan])/2;
+    alpha[idx_chan]  = gamma2[idx_chan]/k1/k2;       /* eq.A23,eq.A24 or eq.7 */
+    beta[idx_chan]   = -(k1+k2)*alpha[idx_chan];     /* eq.A23 or eq.7 */
+    theta1[idx_chan] = alpha[idx_chan]*PImax/VI[idx_chan];
+    theta2[idx_chan] = VI[idx_chan]/PImax;
+    theta3[idx_chan] = gamma2[idx_chan]-1/PImax;
 
-    PL  = ((beta-theta2*theta3)/theta1-1)*PImax;  /* eq.4' */
-    PG  = 1/(theta3-1/PL);                        /* eq.5' */
-    VL  = theta1*PL*PG;                           /* eq.3' */
-    CI  = Asp/Prest;                              /* CI at rest, from eq.A3,eq.A12 */
-    CL  = CI*(Prest+PL)/PL;                       /* CL at rest, from eq.1 */
+    PL[idx_chan]  = ((beta[idx_chan]-theta2[idx_chan]*theta3[idx_chan])/theta1[idx_chan]-1)*PImax;  /* eq.4' */
+    PG[idx_chan]  = 1/(theta3[idx_chan]-1/PL[idx_chan]);                        /* eq.5' */
+    VL[idx_chan]  = theta1[idx_chan]*PL[idx_chan]*PG[idx_chan];                           /* eq.3' */
+    CI[idx_chan]  = Asp/Prest[idx_chan];                              /* CI at rest, from eq.A3,eq.A12 */
+    CL[idx_chan]  = CI[idx_chan]*(Prest[idx_chan]+PL[idx_chan])/PL[idx_chan];                       /* CL at rest, from eq.1 */
 
-    if (kslope >= 0) vsat = kslope+Prest;
-    tmpst = log(2)*vsat/Prest;
-    if(tmpst<400) synstrength = log(exp(tmpst)-1);
-    else synstrength = tmpst;
-    synslope = Prest/log(2)*synstrength;
+    if (kslope[idx_chan] >= 0) vsat[idx_chan] = kslope[idx_chan]+Prest[idx_chan];
+    tmpst[idx_chan] = log(2)*vsat[idx_chan]/Prest[idx_chan];
+    if(tmpst[idx_chan]<400) synstrength[idx_chan] = log(exp(tmpst[idx_chan])-1);
+    else synstrength[idx_chan] = tmpst[idx_chan];
+    synslope[idx_chan] = Prest[idx_chan]/log(2)*synstrength[idx_chan];
 
     /* Compute the main model loop*/
     for (int n=0; n<totalstim; n++) {
@@ -291,18 +301,19 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
         ihcout[n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7);
 
         /* Apply double-exponential adaptation */
-        tmp = synstrength*(ihcout[n]);
+        // TODO Still need to decide how to handle remaining "temporary" variables
+        tmp = synstrength[idx_chan]*(ihcout[n]);
         if(tmp<400) tmp = log(1 + exp(tmp));
-        PPI = synslope/synstrength*tmp;
-        CIlast = CI;
-        CI = CI + (tdres/VI)*(-PPI*CI + PL*(CL-CI));
-        CL = CL + (tdres/VL)*(-PL*(CL-CIlast) + PG*(CG-CL));
-        if (CI < 0) {
-            temp = 1/PG + 1/PL + 1/PPI;
-            CI = CG/(PPI*temp);
-            CL = CI*(PPI+PL)/PL;
+        PPI = synslope[idx_chan]/synstrength[idx_chan]*tmp;
+        CIlast = CI[idx_chan];
+        CI[idx_chan] = CI[idx_chan] + (tdres/VI[idx_chan])*(-PPI*CI[idx_chan] + PL[idx_chan]*(CL[idx_chan]-CI[idx_chan]));
+        CL[idx_chan] = CL[idx_chan] + (tdres/VL[idx_chan])*(-PL[idx_chan]*(CL[idx_chan]-CIlast) + PG[idx_chan]*(CG[idx_chan]-CL[idx_chan]));
+        if (CI[idx_chan] < 0) {
+            temp = 1/PG[idx_chan] + 1/PL[idx_chan] + 1/PPI;
+            CI[idx_chan] = CG[idx_chan]/(PPI*temp);
+            CL[idx_chan] = CI[idx_chan]*(PPI+PL[idx_chan])/PL[idx_chan];
         }
-        exponOut[n] = CI*PPI;
+        exponOut[n] = CI[idx_chan]*PPI;
 
         /* Apply power-law adaptation */
         sout1[n]  = __max(0, exponOut[n] + randNums[n] - alpha1*I1);
