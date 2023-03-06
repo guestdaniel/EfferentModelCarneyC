@@ -160,18 +160,6 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
         centerfreq[idx_chan] = 165.4 * (pow(10, (bmplace[idx_chan]+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
     }
 
-    /* Calculate parameters associated with cochlear gain based on species */
-	// if (species == 1) { 
-    //     gain[idx_chan] = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
-    // }
-    // else {
-    //     gain[idx_chan] = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
-    // }
-
-    /* Limit gain to range of 15 to 60 dB */
-    // if (gain[idx_chan] > 60.0) gain[idx_chan] = 60.0;
-    // if (gain[idx_chan] < 15.0) gain[idx_chan] = 15.0;
-
 	/* Determine parameters for the ??? */
 	Get_tauwb(idx_chan, cf, species, 3, Taumax, Taumin);
 
