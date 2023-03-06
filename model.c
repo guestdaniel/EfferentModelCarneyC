@@ -100,18 +100,26 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
            double *sout2) {
     /* Delcare new used variables */
     int idx_chan = 0;
-    int n_chan = 1;  /* TODO replace this */
+    int n_chan = 1;
 
-    /* Declare variables used in the cochlear-filtering and hair-cell stage */
+    /* Declare variables for BM stage requiring dynamic allocation, and allocate */
     double *tmpgain;
+    tmpgain = (double*) calloc(totalstim, sizeof(double));
+
+    /* Delcare variables for the BM/IHC stage to temporarily store outputs */
+    double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, c2vihctmp,
+           me_curr;
+
+    /* Declare variables for the BM/IHC stage that are the same across channels */
+    double lasttmpgain;
+    int grd;
+
+    /* Declare variables for parameters in the BM/IHC stage that vary by channel */
     double bmplace[n_chan], centerfreq[n_chan], Taumin[n_chan], Taumax[n_chan], 
            bmTaumin[n_chan], bmTaumax[n_chan], ratiobm[n_chan], bmTaubm[n_chan], 
-           TauWBMax[n_chan], TauWBMin[n_chan], tauwb[n_chan], wbgain[n_chan];
-    int grdelay[1];
-    double lasttmpgain, wbout1, wbout, ohcasym, ihcasym, ohcnonlinout, ohcout, 
-           tauc1, rsigma, wb_gain, c1vihctmp, c2vihctmp,
-           me_curr, delay_latency;
-    int grd, len_delay_latency;
+           TauWBMax[n_chan], TauWBMin[n_chan], tauwb[n_chan], wbgain[n_chan],
+           delay_latency[n_chan];
+    int grdelay[n_chan], len_delay_latency[n_chan];
 
     /* Declare variables used in the auditory-nerve stage */
     double alpha1, beta1, I1, alpha2, beta2, I2, synstrength, synslope, CI, CL, PG, CG, VL, 
@@ -120,13 +128,12 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
         tmpst, tmp, PPI, CIlast, temp;
 
     /* Allocate memory for cochlear filtering and hair cell stage */
-    tmpgain = (double*) calloc(totalstim, sizeof(double));
 
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
 	void Get_taubm(int, double *, int, double *, double *, double *, double *);
-    double gain_groupdelay(double, double, double, double, int *);
+    double gain_groupdelay(int, double, double *, double *, double *, int *);
     double WbGammaTone(double, double, double, int, double, double, int);
 	double Boltzman(double, double, double, double, double);
     double NLafterohc(double, double, double, double);
@@ -170,17 +177,13 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
     TauWBMax[idx_chan] = Taumin[idx_chan] + 0.2*(Taumax[idx_chan]-Taumin[idx_chan]); // Eq 4 - [[2006]]
 	TauWBMin[idx_chan] = TauWBMax[idx_chan]/Taumax[idx_chan]*Taumin[idx_chan];
     tauwb[idx_chan] = TauWBMax[idx_chan] + (bmTaubm[idx_chan]-bmTaumax[idx_chan])*(TauWBMax[idx_chan]-TauWBMin[idx_chan])/(bmTaumax[idx_chan]-bmTaumin[idx_chan]);
-	wbgain[idx_chan] = gain_groupdelay(tdres, centerfreq[idx_chan], cf[idx_chan], tauwb[idx_chan], grdelay);
+	wbgain[idx_chan] = gain_groupdelay(idx_chan, tdres, centerfreq, cf, tauwb, grdelay);
 	tmpgain[0] = wbgain[idx_chan];
 	lasttmpgain = wbgain[idx_chan];
 
-    /* Determine parameters for OHC/IHC transduction nonlinearities */
-	ohcasym = 7.0;    
-	ihcasym = 3.0;
-
     /* Calculate latency delay time (to account for measured spike latency) */
-    delay_latency = delay_cat(cf[idx_chan]);  /* Delay time in s */
-    len_delay_latency = __max(0, (int) ceil(delay_latency/tdres));  /* Delay time in samples*/
+    delay_latency[idx_chan] = delay_cat(cf[idx_chan]);  /* Delay time in s */
+    len_delay_latency[idx_chan] = __max(0, (int) ceil(delay_latency[idx_chan]/tdres));  /* Delay time in samples*/
 
     /* Set parameters for power-law adaptation */
     alpha1 = 2.5e-6*100e3; 
@@ -244,10 +247,10 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
     /* Compute the main model loop*/
     for (int n=0; n<totalstim; n++) {
         /* Delay signal according to delay time */
-        if ((n - len_delay_latency) < 0) {
+        if ((n - len_delay_latency[idx_chan]) < 0) {
             me_curr = 0.0;
         } else {
-            me_curr = meout[n - len_delay_latency]; 
+            me_curr = meout[n - len_delay_latency[idx_chan]]; 
         }
 
         /* Pass signal through control-path filter */
@@ -256,9 +259,9 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 
         /* Pass the control-path signal through the OHC model (nonlinear transduction and 
            lowpass filtering) */
-        ohcnonlinout = Boltzman(wbout, ohcasym, 12.0, 5.0, 5.0);
+        ohcnonlinout = Boltzman(wbout, 7.0, 12.0, 5.0, 5.0);
 		ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2);
-		controlout[n] = NLafterohc(ohcout, bmTaumin[idx_chan], bmTaumax[idx_chan], ohcasym);
+		controlout[n] = NLafterohc(ohcout, bmTaumin[idx_chan], bmTaumax[idx_chan], 7.0);
 
         /* Determine time constant and shift of C1 filter poles based on output of OHCs */
 		tauc1 = cohc*(controlout[n]-bmTaumin[idx_chan]) + bmTaumin[idx_chan]; 
@@ -266,8 +269,9 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 
 		tauwb[idx_chan] = TauWBMax[idx_chan] + (tauc1-bmTaumax[idx_chan])*(TauWBMax[idx_chan]-TauWBMin[idx_chan])/(bmTaumax[idx_chan]-bmTaumin[idx_chan]);
 
-        wb_gain = gain_groupdelay(tdres, centerfreq[idx_chan], cf[idx_chan], tauwb[idx_chan], grdelay);
+        wb_gain = gain_groupdelay(idx_chan, tdres, centerfreq, cf, tauwb, grdelay);
 
+        /* TODO Figure out what the next ~10 lines do? */
 		grd = grdelay[0];
 
         if ((grd+n) < totalstim) {
@@ -287,7 +291,7 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 		c2out[n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], 1/ratiobm[idx_chan]);
 
 	    /* Apply IHC model: NL input-output function and lowpass filtering */
-        c1vihctmp  = NLogarithm(cihc*c1out[n], 0.1, ihcasym, cf[idx_chan]);
+        c1vihctmp  = NLogarithm(cihc*c1out[n], 0.1, 3.0, cf[idx_chan]);
         c1vihcout[n] = c1vihctmp;  /* store sample output in vector */
 		c2vihctmp = -NLogarithm(c2out[n]*fabs(c2out[n])*cf[idx_chan]/10*cf[idx_chan]/2e3, 0.2, 1.0, cf[idx_chan]); /* C2 transduction output */
         c2vihcout[n] = c2vihctmp;  /* store sample output in vector */
@@ -506,12 +510,13 @@ void Get_taubm(int idx_chan, double *cf, int species, double *taumax, double *bm
  * @param tau ???
  * @param grdelay ???
  */
-double gain_groupdelay(double tdres,double centerfreq, double cf, double tau,int *grdelay) { 
+double gain_groupdelay(int idx_chan, double tdres, double *centerfreq, double *cf, double *tau,
+                     int *grdelay) { 
     double tmpcos,dtmp2,c1LP,c2LP,tmp1,tmp2,wb_gain;
 
     /* Calculate constants and parameters */
-    tmpcos = cos(TWOPI*(centerfreq-cf)*tdres);
-    dtmp2 = tau*2.0/tdres;
+    tmpcos = cos(TWOPI*(centerfreq[idx_chan]-cf[idx_chan])*tdres);
+    dtmp2 = tau[idx_chan]*2.0/tdres;
     c1LP = (dtmp2-1)/(dtmp2+1);
     c2LP = 1.0/(dtmp2+1);
     tmp1 = 1+c1LP*c1LP-2*c1LP*tmpcos;
@@ -521,7 +526,7 @@ double gain_groupdelay(double tdres,double centerfreq, double cf, double tau,int
     wb_gain = pow(tmp1/tmp2, 1.0/2.0);
 
     /* Calculate ??? */
-    grdelay[0] = (int)floor((0.5-(c1LP*c1LP-c1LP*tmpcos)/(1+c1LP*c1LP-2*c1LP*tmpcos)));
+    grdelay[idx_chan] = (int)floor((0.5-(c1LP*c1LP-c1LP*tmpcos)/(1+c1LP*c1LP-2*c1LP*tmpcos)));
 
     return(wb_gain);
 }
