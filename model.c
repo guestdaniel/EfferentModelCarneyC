@@ -94,7 +94,7 @@
  */
 void model(double *px, double *randNums, double *cf, double tdres, int totalstim,
            double cohc, double cihc, int species, double spont, 
-           double *meout, double **controlout, double *c1out, 
+           double *meout, double **controlout, double **c1out, 
            double *c1vihcout, double *c2out, double *c2vihcout, double *ihcout, 
            double *synout, double *exponOut, double *sout1, 
            double *sout2) {
@@ -288,13 +288,13 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 		lasttmpgain[idx_chan] = wbgain[idx_chan];
 
         /* Apply signal-path C1 filter */
-	    c1out[n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma);
+	    c1out[idx_chan][n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma);
 
         /* Apply parallel-path C2 filter */
 		c2out[n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], 1/ratiobm[idx_chan]);
 
 	    /* Apply IHC model: NL input-output function and lowpass filtering */
-        c1vihctmp  = NLogarithm(cihc*c1out[n], 0.1, 3.0, cf[idx_chan]);
+        c1vihctmp  = NLogarithm(cihc*c1out[idx_chan][n], 0.1, 3.0, cf[idx_chan]);
         c1vihcout[n] = c1vihctmp;  /* store sample output in vector */
 		c2vihctmp = -NLogarithm(c2out[n]*fabs(c2out[n])*cf[idx_chan]/10*cf[idx_chan]/2e3, 0.2, 1.0, cf[idx_chan]); /* C2 transduction output */
         c2vihcout[n] = c2vihctmp;  /* store sample output in vector */
