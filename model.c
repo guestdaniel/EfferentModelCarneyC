@@ -95,9 +95,9 @@
 void model(double *px, double *randNums, double *cf, double tdres, int totalstim,
            double cohc, double cihc, int species, double spont, 
            double *meout, double **controlout, double **c1out, 
-           double *c1vihcout, double *c2out, double *c2vihcout, double *ihcout, 
-           double *synout, double *exponOut, double *sout1, 
-           double *sout2) {
+           double **c1vihcout, double **c2out, double **c2vihcout, double **ihcout, 
+           double **synout, double **exponOut, double **sout1, 
+           double **sout2) {
     /* Delcare new used variables */
     int idx_chan = 0;
     int n_chan = 1;
@@ -291,18 +291,18 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 	    c1out[idx_chan][n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma);
 
         /* Apply parallel-path C2 filter */
-		c2out[n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], 1/ratiobm[idx_chan]);
+		c2out[idx_chan][n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], 1/ratiobm[idx_chan]);
 
 	    /* Apply IHC model: NL input-output function and lowpass filtering */
         c1vihctmp  = NLogarithm(cihc*c1out[idx_chan][n], 0.1, 3.0, cf[idx_chan]);
-        c1vihcout[n] = c1vihctmp;  /* store sample output in vector */
-		c2vihctmp = -NLogarithm(c2out[n]*fabs(c2out[n])*cf[idx_chan]/10*cf[idx_chan]/2e3, 0.2, 1.0, cf[idx_chan]); /* C2 transduction output */
-        c2vihcout[n] = c2vihctmp;  /* store sample output in vector */
-        ihcout[n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7);
+        c1vihcout[idx_chan][n] = c1vihctmp;  /* store sample output in vector */
+		c2vihctmp = -NLogarithm(c2out[idx_chan][n]*fabs(c2out[idx_chan][n])*cf[idx_chan]/10*cf[idx_chan]/2e3, 0.2, 1.0, cf[idx_chan]); /* C2 transduction output */
+        c2vihcout[idx_chan][n] = c2vihctmp;  /* store sample output in vector */
+        ihcout[idx_chan][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7);
 
         /* Apply double-exponential adaptation */
         // TODO Still need to decide how to handle remaining "temporary" variables
-        tmp = synstrength[idx_chan]*(ihcout[n]);
+        tmp = synstrength[idx_chan]*(ihcout[idx_chan][n]);
         if(tmp<400) tmp = log(1 + exp(tmp));
         PPI = synslope[idx_chan]/synstrength[idx_chan]*tmp;
         CIlast = CI[idx_chan];
@@ -313,17 +313,17 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
             CI[idx_chan] = CG[idx_chan]/(PPI*temp);
             CL[idx_chan] = CI[idx_chan]*(PPI+PL[idx_chan])/PL[idx_chan];
         }
-        exponOut[n] = CI[idx_chan]*PPI;
+        exponOut[idx_chan][n] = CI[idx_chan]*PPI;
 
         /* Apply power-law adaptation */
-        sout1[n]  = __max(0, exponOut[n] + randNums[n] - alpha1*I1);
-        sout2[n] = __max(0, exponOut[n] - alpha2 * I2);
+        sout1[idx_chan][n]  = __max(0, exponOut[idx_chan][n] + randNums[n] - alpha1*I1);
+        sout2[idx_chan][n] = __max(0, exponOut[idx_chan][n] - alpha2 * I2);
         I1 = 0; I2 = 0;
         for (int j = 0; j < n+1; ++j) {
-            I1 += (sout1[j])*tdres/((n-j)*tdres + beta1);
-            I2 += (sout2[j])*tdres/((n-j)*tdres + beta2);
+            I1 += (sout1[idx_chan][j])*tdres/((n-j)*tdres + beta1);
+            I2 += (sout2[idx_chan][j])*tdres/((n-j)*tdres + beta2);
         }
-        synout[n] = sout1[n] + sout2[n];
+        synout[idx_chan][n] = sout1[idx_chan][n] + sout2[idx_chan][n];
     }
 
     /* Free dynamic memory */
