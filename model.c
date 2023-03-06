@@ -103,8 +103,8 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
     int n_chan = 1;  /* TODO replace this */
 
     /* Declare variables used in the cochlear-filtering and hair-cell stage */
-    double *tmpgain, *bmplace, *centerfreq;
-    double Taumin[n_chan], Taumax[n_chan], 
+    double *tmpgain;
+    double bmplace[n_chan], centerfreq[n_chan], Taumin[n_chan], Taumax[n_chan], 
            bmTaumin[n_chan], bmTaumax[n_chan], ratiobm[n_chan], bmTaubm[n_chan], 
            TauWBMax[n_chan], TauWBMin[n_chan], tauwb[n_chan], wbgain[n_chan];
     int grdelay[1];
@@ -121,8 +121,6 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 
     /* Allocate memory for cochlear filtering and hair cell stage */
     tmpgain = (double*) calloc(totalstim, sizeof(double));
-    bmplace = (double*) calloc(n_chan, sizeof(double));
-    centerfreq = (double*) calloc(n_chan, sizeof(double));
 
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
@@ -322,8 +320,6 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 
     /* Free dynamic memory */
     free(tmpgain);
-    free(bmplace);
-    free(centerfreq);
 }
 
 /**
