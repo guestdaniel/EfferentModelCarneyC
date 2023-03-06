@@ -94,7 +94,7 @@
  */
 void model(double *px, double *randNums, double *cf, double tdres, int totalstim,
            double cohc, double cihc, int species, double spont, 
-           double *meout, double *controlout, double *c1out, 
+           double *meout, double **controlout, double *c1out, 
            double *c1vihcout, double *c2out, double *c2vihcout, double *ihcout, 
            double *synout, double *exponOut, double *sout1, 
            double *sout2) {
@@ -269,10 +269,10 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
            lowpass filtering) */
         ohcnonlinout = Boltzman(wbout, 7.0, 12.0, 5.0, 5.0);
 		ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2);
-		controlout[n] = NLafterohc(ohcout, bmTaumin[idx_chan], bmTaumax[idx_chan], 7.0);
+		controlout[idx_chan][n] = NLafterohc(ohcout, bmTaumin[idx_chan], bmTaumax[idx_chan], 7.0);
 
         /* Determine time constant and shift of C1 filter poles based on output of OHCs */
-		tauc1 = cohc*(controlout[n]-bmTaumin[idx_chan]) + bmTaumin[idx_chan]; 
+		tauc1 = cohc*(controlout[idx_chan][n]-bmTaumin[idx_chan]) + bmTaumin[idx_chan]; 
 		rsigma = 1/tauc1 - 1/bmTaumax[idx_chan];
 		tauwb[idx_chan] = TauWBMax[idx_chan] + (tauc1-bmTaumax[idx_chan])*(TauWBMax[idx_chan]-TauWBMin[idx_chan])/(bmTaumax[idx_chan]-bmTaumin[idx_chan]);
 
