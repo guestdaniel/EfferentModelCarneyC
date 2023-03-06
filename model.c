@@ -103,22 +103,20 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
     int n_chan = 1;
 
     /* Declare variables for BM stage requiring dynamic allocation, and allocate */
-    double *tmpgain;
-    tmpgain = (double*) calloc(totalstim, sizeof(double));
+    double *tmpgain[n_chan];
+    for (int i = 0; i < n_chan; i++) {
+        tmpgain[i] = (double*) calloc(totalstim, sizeof(double));
+    }
 
     /* Delcare variables for the BM/IHC stage to temporarily store outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, c2vihctmp,
            me_curr;
 
-    /* Declare variables for the BM/IHC stage that are the same across channels */
-    double lasttmpgain;
-    int grd;
-
     /* Declare variables for parameters in the BM/IHC stage that vary by channel */
     double bmplace[n_chan], centerfreq[n_chan], Taumin[n_chan], Taumax[n_chan], 
            bmTaumin[n_chan], bmTaumax[n_chan], ratiobm[n_chan], bmTaubm[n_chan], 
            TauWBMax[n_chan], TauWBMin[n_chan], tauwb[n_chan], wbgain[n_chan],
-           delay_latency[n_chan];
+           delay_latency[n_chan], lasttmpgain[n_chan];
     int grdelay[n_chan], len_delay_latency[n_chan];
 
     /* Declare variables used in the auditory-nerve stage */
@@ -178,8 +176,8 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 	TauWBMin[idx_chan] = TauWBMax[idx_chan]/Taumax[idx_chan]*Taumin[idx_chan];
     tauwb[idx_chan] = TauWBMax[idx_chan] + (bmTaubm[idx_chan]-bmTaumax[idx_chan])*(TauWBMax[idx_chan]-TauWBMin[idx_chan])/(bmTaumax[idx_chan]-bmTaumin[idx_chan]);
 	wbgain[idx_chan] = gain_groupdelay(idx_chan, tdres, centerfreq, cf, tauwb, grdelay);
-	tmpgain[0] = wbgain[idx_chan];
-	lasttmpgain = wbgain[idx_chan];
+	tmpgain[idx_chan][0] = wbgain[idx_chan];
+	lasttmpgain[idx_chan] = wbgain[idx_chan];
 
     /* Calculate latency delay time (to account for measured spike latency) */
     delay_latency[idx_chan] = delay_cat(cf[idx_chan]);  /* Delay time in s */
@@ -266,23 +264,18 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
         /* Determine time constant and shift of C1 filter poles based on output of OHCs */
 		tauc1 = cohc*(controlout[n]-bmTaumin[idx_chan]) + bmTaumin[idx_chan]; 
 		rsigma = 1/tauc1 - 1/bmTaumax[idx_chan];
-
 		tauwb[idx_chan] = TauWBMax[idx_chan] + (tauc1-bmTaumax[idx_chan])*(TauWBMax[idx_chan]-TauWBMin[idx_chan])/(bmTaumax[idx_chan]-bmTaumin[idx_chan]);
 
+        /* Do some sort of groupdelay manipulation??? TODO Fix this */
         wb_gain = gain_groupdelay(idx_chan, tdres, centerfreq, cf, tauwb, grdelay);
-
-        /* TODO Figure out what the next ~10 lines do? */
-		grd = grdelay[0];
-
-        if ((grd+n) < totalstim) {
-            tmpgain[grd+n] = wb_gain;
+        if ((grdelay[idx_chan]+n) < totalstim) {
+            tmpgain[idx_chan][grdelay[idx_chan]+n] = wb_gain;
         }
-        if (tmpgain[n] == 0) {
-			tmpgain[n] = lasttmpgain;
+        if (tmpgain[idx_chan][n] == 0) {
+			tmpgain[idx_chan][n] = lasttmpgain[idx_chan];
         }
-
-		wbgain[idx_chan] = tmpgain[n];
-		lasttmpgain = wbgain[idx_chan];
+		wbgain[idx_chan] = tmpgain[idx_chan][n];
+		lasttmpgain[idx_chan] = wbgain[idx_chan];
 
         /* Apply signal-path C1 filter */
 	    c1out[n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma);
@@ -323,7 +316,9 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
     }
 
     /* Free dynamic memory */
-    free(tmpgain);
+    for (int i = 0; i < n_chan; i++) {
+        free(tmpgain[i]);
+    }
 }
 
 /**
