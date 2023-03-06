@@ -100,12 +100,13 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
            double *sout2) {
     /* Delcare new used variables */
     int idx_chan = 0;
+    int n_chan = 1;  /* TODO replace this */
 
     /* Declare variables used in the cochlear-filtering and hair-cell stage */
-    double *tmpgain;
-    double Taumin[1],Taumax[1], bmTaumin[1], bmTaumax[1], ratiobm[1];
+    double *tmpgain, *bmplace, *centerfreq;
+    double Taumin[n_chan], Taumax[n_chan], bmTaumin[1], bmTaumax[1], ratiobm[1];
     int grdelay[1];
-    double bmplace, centerfreq, gain, TauWBMax, TauWBMin, bmTaubm, tauwb, wbgain, 
+    double TauWBMax, TauWBMin, bmTaubm, tauwb, wbgain, 
            lasttmpgain, wbout1, wbout, ohcasym, ihcasym, ohcnonlinout, ohcout, 
            tauc1, rsigma, wb_gain, c1vihctmp, c2vihctmp,
            me_curr, delay_latency;
@@ -119,10 +120,12 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 
     /* Allocate memory for cochlear filtering and hair cell stage */
     tmpgain = (double*) calloc(totalstim, sizeof(double));
+    bmplace = (double*) calloc(n_chan, sizeof(double));
+    centerfreq = (double*) calloc(n_chan, sizeof(double));
 
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
-    double Get_tauwb(double, int, int, double *, double *);
+    void Get_tauwb(int, double *, int, int, double *, double *);
 	double Get_taubm(double, int, double, double *, double *, double *);
     double gain_groupdelay(double, double, double, double, int *);
     double WbGammaTone(double, double, double, int, double, double, int);
@@ -139,41 +142,48 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
     /* Calculate middle-ear output */
     middle_ear(px, tdres, totalstim, species, meout);
 
-	/* Calculate the center frequency for the control-path wideband filter
-	   from the location on basilar membrane, based on species and Greenwood (JASA 1990) */
+	/* Calculate the center frequency for the control-path wideband filter as center
+       frequency corresponding to a 1.2-mm basal shift from requested CF.
+
+       This shift seeks to account for observations that suppression tuning curves have
+       slightly higher tip frequencies than excitatory tuning curves (pg. 1450, Zilany
+       and Bruce, 2006).
+
+       The details of this shift depends on the species in question (cat vs human).
+     */
 	if (species == 1) {
-        bmplace = 11.9 * log10(0.80 + cf[idx_chan]/456.0); /* Calculate the location on basilar membrane from CF */
-        centerfreq = 456.0 * (pow(10, (bmplace+1.2)/11.9) - 0.80); /* Shift the center freq */
+        bmplace[idx_chan] = 11.9 * log10(0.80 + cf[idx_chan]/456.0); /* Calculate the location on basilar membrane from CF */
+        centerfreq[idx_chan] = 456.0 * (pow(10, (bmplace[idx_chan]+1.2)/11.9) - 0.80); /* Shift the center freq */
     }
 	else {
-        bmplace = (35/2.1) * log10(1.0 + cf[idx_chan]/165.4); /* Calculate the location on basilar membrane from CF */
-        centerfreq = 165.4 * (pow(10, (bmplace+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
+        bmplace[idx_chan] = (35/2.1) * log10(1.0 + cf[idx_chan]/165.4); /* Calculate the location on basilar membrane from CF */
+        centerfreq[idx_chan] = 165.4 * (pow(10, (bmplace[idx_chan]+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
     }
 
     /* Calculate parameters associated with cochlear gain based on species */
-	if (species == 1) { 
-        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
-    }
-    else {
-        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
-    }
+	// if (species == 1) { 
+    //     gain[idx_chan] = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
+    // }
+    // else {
+    //     gain[idx_chan] = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
+    // }
 
     /* Limit gain to range of 15 to 60 dB */
-    if (gain > 60.0) gain = 60.0;
-    if (gain < 15.0) gain = 15.0;
+    // if (gain[idx_chan] > 60.0) gain[idx_chan] = 60.0;
+    // if (gain[idx_chan] < 15.0) gain[idx_chan] = 15.0;
 
 	/* Determine parameters for the ??? */
-	Get_tauwb(cf[idx_chan], species, 3, Taumax, Taumin);
+	Get_tauwb(idx_chan, cf, species, 3, Taumax, Taumin);
 
     /* Determine parameters for the signal-path C1 filter */
-	Get_taubm(cf[idx_chan], species, Taumax[0], bmTaumax, bmTaumin, ratiobm);
+	Get_taubm(cf[idx_chan], species, Taumax[idx_chan], bmTaumax, bmTaumin, ratiobm);
 	bmTaubm = cohc*(bmTaumax[0]-bmTaumin[0])+bmTaumin[0];
 
     /* Determine parameters for the control-path wideband filter */
-    TauWBMax = Taumin[0] + 0.2*(Taumax[0]-Taumin[0]);
-	TauWBMin = TauWBMax/Taumax[0]*Taumin[0];
+    TauWBMax = Taumin[idx_chan] + 0.2*(Taumax[idx_chan]-Taumin[idx_chan]); // Eq 4 - [[2006]]
+	TauWBMin = TauWBMax/Taumax[idx_chan]*Taumin[idx_chan];
     tauwb = TauWBMax + (bmTaubm-bmTaumax[0])*(TauWBMax-TauWBMin)/(bmTaumax[0]-bmTaumin[0]);
-	wbgain = gain_groupdelay(tdres, centerfreq, cf[idx_chan], tauwb, grdelay);
+	wbgain = gain_groupdelay(tdres, centerfreq[idx_chan], cf[idx_chan], tauwb, grdelay);
 	tmpgain[0] = wbgain;
 	lasttmpgain = wbgain;
 
@@ -254,7 +264,7 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
         }
 
         /* Pass signal through control-path filter */
-        wbout1 = WbGammaTone(me_curr, tdres, centerfreq, n, tauwb, wbgain, 3);
+        wbout1 = WbGammaTone(me_curr, tdres, centerfreq[idx_chan], n, tauwb, wbgain, 3);
         wbout = pow((tauwb/TauWBMax), 3) * wbout1 * 10e3 *__max(1, cf[idx_chan]/5e3);
 
         /* Pass the control-path signal through the OHC model (nonlinear transduction and 
@@ -269,7 +279,7 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 
 		tauwb = TauWBMax + (tauc1-bmTaumax[0])*(TauWBMax-TauWBMin)/(bmTaumax[0]-bmTaumin[0]);
 
-        wb_gain = gain_groupdelay(tdres, centerfreq, cf[idx_chan], tauwb, grdelay);
+        wb_gain = gain_groupdelay(tdres, centerfreq[idx_chan], cf[idx_chan], tauwb, grdelay);
 
 		grd = grdelay[0];
 
@@ -323,6 +333,8 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
 
     /* Free dynamic memory */
     free(tmpgain);
+    free(bmplace);
+    free(centerfreq);
 }
 
 /**
@@ -412,51 +424,51 @@ void middle_ear(double *px, double tdres, int totalstim, int species, double *me
 /**
  * Get_tauwb
  * 
- * For a given CF, species, and order, return tau values for the control-path wideband filter
+ * Calculate tau (time constant) values for the control-path wideband filter
  * 
- * @param cf Characteristic frequency (Hz)
- * @param species what species to simulate (1==cat, 2=human[shera], 3==human[glasberg])
- * @param order ???
- * @param taumax ???
- * @param taumin ???
+ * @param idx_chan Index selecting which channel we are processing
+ * @param cf Vector of characteristic frequencies (Hz)
+ * @param species What species to simulate (1==cat, 2=human[shera], 3==human[glasberg])
+ * @param order Order of the wideband Gammatone filter
+ * @param taumax Filter time constant at low sound levels
+ * @param taumin Filter time constant at high sound levels
  */
-double Get_tauwb(double cf, int species, int order, double *taumax, double *taumin) {
+void Get_tauwb(int idx_chan, double *cf, int species, int order, double *taumax, double *taumin) {
     double Q10, bw, gain, ratio;
 
     /* Calculate gain for cats (species == 1) or humans */
     if (species == 1) {
-        gain = 52.0/2.0*(tanh(2.2*log10(cf/0.6e3)+0.15)+1.0);
+        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);  // Eq 6 - [[2006]] TODO resolve imperfect match
     } 
     else {
-        gain = 52.0/2.0*(tanh(2.2*log10(cf/0.6e3)+0.15)+1.0);
+        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
     } 
 
     /* Limit gain to 15-60 dB range */
-    if(gain>60.0) gain = 60.0;  
-    if(gain<15.0) gain = 15.0;
+    if (gain > 60.0) gain = 60.0;  
+    if (gain < 15.0) gain = 15.0;
 
     /* Calculate ratio of TauMin/TauMax according to the gain and order */
-    ratio = pow(10,(-gain/(20.0*order)));
+    ratio = pow(10, (-gain/(20.0*order)));  // pg 1451, top left - [[2006]]
 
-    /* Calculate Q10 values for cats (species == 1) or humans (Glasberg == 2, Shera == 3) */
+    /* Calculate Q10 values for cats (species == 1) or humans (Shera == 2, Glasberg == 3) */
+    /* Values for cat come from ... */
     /* Values for Shera come from Shera et al. (PNAS 2002) */
     /* Values for Glasberg come from Glasberg and Moore (Hear. Res. 1999) */
     if (species == 1) {
-        Q10 = pow(10,0.4708*log10(cf/1e3)+0.4664);
+        Q10 = pow(10, 0.4708*log10(cf[idx_chan]/1e3) + 0.4664);  // pg 1451, top left - [[2006]]
     }
     if (species==2) {
-        Q10 = pow((cf/1000),0.3)*12.7*0.505+0.2085;
+        Q10 = pow((cf[idx_chan]/1000), 0.3) * 12.7*0.505 + 0.2085;
     }
     else {
-        Q10 = cf/24.7/(4.37*(cf/1000)+1)*0.505+0.2085;
+        Q10 = cf[idx_chan] / 24.7 / (4.37*(cf[idx_chan]/1000)+1)*0.505 + 0.2085;
     }
 
     /* Calculate bandwidth, taumax, and taumin */
-    bw = cf/Q10;
-    taumax[0] = 2.0/(TWOPI*bw);
-    taumin[0] = taumax[0]*ratio;
-    
-    return 0;
+    bw = cf[idx_chan]/Q10;
+    taumax[idx_chan] = 2.0/(TWOPI*bw);  // pg 1451, top left - [[2006]]
+    taumin[idx_chan] = taumax[idx_chan]*ratio; // Eq 5 - [[2006]]
 }
 
 /**
