@@ -241,7 +241,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres,
     middle_ear(px, tdres, totalstim, species, meout);
 
     /* Calculate all parameters, coefficients, etc. for each channel */
-    for (int idx_chan = 0; idx_chan < n_chan; idx_chan++) {
+    for (int c = 0; c < n_chan; c++) {
         /* Calculate the center frequency for the control-path wideband filter as center
         frequency corresponding to a 1.2-mm basal shift from requested CF.
 
@@ -252,32 +252,32 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres,
         The details of this shift depends on the species in question (cat vs human).
         */
         if (species == 1) {
-            bmplace[idx_chan] = 11.9 * log10(0.80 + cf[idx_chan]/456.0); /* Calculate the location on basilar membrane from CF */
-            centerfreq[idx_chan] = 456.0 * (pow(10, (bmplace[idx_chan]+1.2)/11.9) - 0.80); /* Shift the center freq */
+            bmplace[c] = 11.9 * log10(0.80 + cf[c]/456.0); /* Calculate the location on basilar membrane from CF */
+            centerfreq[c] = 456.0 * (pow(10, (bmplace[c]+1.2)/11.9) - 0.80); /* Shift the center freq */
         }
         else {
-            bmplace[idx_chan] = (35/2.1) * log10(1.0 + cf[idx_chan]/165.4); /* Calculate the location on basilar membrane from CF */
-            centerfreq[idx_chan] = 165.4 * (pow(10, (bmplace[idx_chan]+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
+            bmplace[c] = (35/2.1) * log10(1.0 + cf[c]/165.4); /* Calculate the location on basilar membrane from CF */
+            centerfreq[c] = 165.4 * (pow(10, (bmplace[c]+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
         }
 
         /* Determine parameters for the ??? */
-        Get_tauwb(idx_chan, cf, species, 3, Taumax, Taumin);
+        Get_tauwb(c, cf, species, 3, Taumax, Taumin);
 
         /* Determine parameters for the signal-path C1 filter */
-        Get_taubm(idx_chan, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
-        bmTaubm[idx_chan] = cohc*(bmTaumax[idx_chan]-bmTaumin[idx_chan]) + bmTaumin[idx_chan];
+        Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
+        bmTaubm[c] = cohc*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
 
         /* Determine parameters for the control-path wideband filter */
-        TauWBMax[idx_chan] = Taumin[idx_chan] + 0.2*(Taumax[idx_chan]-Taumin[idx_chan]); // Eq 4 - [[2006]]
-        TauWBMin[idx_chan] = TauWBMax[idx_chan]/Taumax[idx_chan]*Taumin[idx_chan];
-        tauwb[idx_chan] = TauWBMax[idx_chan] + (bmTaubm[idx_chan]-bmTaumax[idx_chan])*(TauWBMax[idx_chan]-TauWBMin[idx_chan])/(bmTaumax[idx_chan]-bmTaumin[idx_chan]);
-        wbgain[idx_chan] = gain_groupdelay(tdres, centerfreq[idx_chan], cf[idx_chan], tauwb[idx_chan], &grdelay[idx_chan]);
-        tmpgain[idx_chan][0] = wbgain[idx_chan];
-        lasttmpgain[idx_chan] = wbgain[idx_chan];
+        TauWBMax[c] = Taumin[c] + 0.2*(Taumax[c]-Taumin[c]); // Eq 4 - [[2006]]
+        TauWBMin[c] = TauWBMax[c]/Taumax[c]*Taumin[c];
+        tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c])*(TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
+        wbgain[c] = gain_groupdelay(tdres, centerfreq[c], cf[c], tauwb[c], &grdelay[c]);
+        tmpgain[c][0] = wbgain[c];
+        lasttmpgain[c] = wbgain[c];
 
         /* Calculate latency delay time (to account for measured spike latency) */
-        delay_latency[idx_chan] = delay_cat(cf[idx_chan]);  /* Delay time in s */
-        len_delay_latency[idx_chan] = __max(0, (int) ceil(delay_latency[idx_chan]/tdres));  /* Delay time in samples*/
+        delay_latency[c] = delay_cat(cf[c]);  /* Delay time in s */
+        len_delay_latency[c] = __max(0, (int) ceil(delay_latency[c]/tdres));  /* Delay time in samples*/
 
         /* Set parameters for power-law adaptation */
         alpha1 = 2.5e-6*100e3; 
@@ -291,11 +291,11 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres,
 
         /* Set parameters for double-exponential adaptation (based on fiber type / spont) */
         if (spont == 100) {
-            cf_factor[idx_chan] = __min(800, pow(10, 0.29*cf[idx_chan]/1e3 + 0.7));
+            cf_factor[c] = __min(800, pow(10, 0.29*cf[c]/1e3 + 0.7));
         } else if (spont == 4) {
-            cf_factor[idx_chan] = __min(50, 2.5e-4*cf[idx_chan]*4 + 0.2);
+            cf_factor[c] = __min(50, 2.5e-4*cf[c]*4 + 0.2);
         } else {
-            cf_factor[idx_chan] = __min(1.0, 2.5e-4*cf[idx_chan]*0.1 + 0.15);
+            cf_factor[c] = __min(1.0, 2.5e-4*cf[c]*0.1 + 0.15);
         }
         
         PImax  = 0.6;                /* PI2 : Maximum of the PI(PI at steady state) */
@@ -307,111 +307,111 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres,
         k1     = -1/TauR;                          /* eq.8 & eq.10 */
         k2     = -1/TauST;                         /* eq.8 & eq.10 */
 
-        kslope[idx_chan] = (1+50.0)/(5+50.0)*cf_factor[idx_chan]*20.0*PImax;
-        Ass[idx_chan] = 800*(1+cf[idx_chan]/100e3);    /* Steady State Firing Rate eq.10 */
+        kslope[c] = (1+50.0)/(5+50.0)*cf_factor[c]*20.0*PImax;
+        Ass[c] = 800*(1+cf[c]/100e3);    /* Steady State Firing Rate eq.10 */
 
-        Aon[idx_chan] = PTS*Ass[idx_chan];                          /* Onset rate = Ass+Ar+Ast eq.10 */
-        AR[idx_chan] = (Aon[idx_chan]-Ass[idx_chan])*Ar_Ast/(1+Ar_Ast);      /* Rapid component magnitude: eq.10 */
-        AST[idx_chan] = Aon[idx_chan]-Ass[idx_chan]-AR[idx_chan];                       /* Short time component: eq.10 */
-        Prest[idx_chan] = PImax/Aon[idx_chan]*Asp;                    /* eq.A15 */
-        CG[idx_chan] = (Asp*(Aon[idx_chan]-Asp))/(Aon[idx_chan]*Prest[idx_chan]*(1-Asp/Ass[idx_chan]));    /* eq.A16 */
-        gamma1[idx_chan] = CG[idx_chan]/Asp;                           /* eq.A19 */
-        gamma2[idx_chan] = CG[idx_chan]/Ass[idx_chan];                           /* eq.A20 */
+        Aon[c] = PTS*Ass[c];                          /* Onset rate = Ass+Ar+Ast eq.10 */
+        AR[c] = (Aon[c]-Ass[c])*Ar_Ast/(1+Ar_Ast);      /* Rapid component magnitude: eq.10 */
+        AST[c] = Aon[c]-Ass[c]-AR[c];                       /* Short time component: eq.10 */
+        Prest[c] = PImax/Aon[c]*Asp;                    /* eq.A15 */
+        CG[c] = (Asp*(Aon[c]-Asp))/(Aon[c]*Prest[c]*(1-Asp/Ass[c]));    /* eq.A16 */
+        gamma1[c] = CG[c]/Asp;                           /* eq.A19 */
+        gamma2[c] = CG[c]/Ass[c];                           /* eq.A20 */
                 /* eq.A21 & eq.A22 */
-        VI0[idx_chan]    = (1-PImax/Prest[idx_chan])/(gamma1[idx_chan]*(AR[idx_chan]*(k1-k2)/CG[idx_chan]/PImax+k2/Prest[idx_chan]/gamma1[idx_chan]-k2/PImax/gamma2[idx_chan]));
-        VI1[idx_chan]    = (1-PImax/Prest[idx_chan])/(gamma1[idx_chan]*(AST[idx_chan]*(k2-k1)/CG[idx_chan]/PImax+k1/Prest[idx_chan]/gamma1[idx_chan]-k1/PImax/gamma2[idx_chan]));
-        VI[idx_chan]  = (VI0[idx_chan]+VI1[idx_chan])/2;
-        alpha[idx_chan]  = gamma2[idx_chan]/k1/k2;       /* eq.A23,eq.A24 or eq.7 */
-        beta[idx_chan]   = -(k1+k2)*alpha[idx_chan];     /* eq.A23 or eq.7 */
-        theta1[idx_chan] = alpha[idx_chan]*PImax/VI[idx_chan];
-        theta2[idx_chan] = VI[idx_chan]/PImax;
-        theta3[idx_chan] = gamma2[idx_chan]-1/PImax;
+        VI0[c]    = (1-PImax/Prest[c])/(gamma1[c]*(AR[c]*(k1-k2)/CG[c]/PImax+k2/Prest[c]/gamma1[c]-k2/PImax/gamma2[c]));
+        VI1[c]    = (1-PImax/Prest[c])/(gamma1[c]*(AST[c]*(k2-k1)/CG[c]/PImax+k1/Prest[c]/gamma1[c]-k1/PImax/gamma2[c]));
+        VI[c]  = (VI0[c]+VI1[c])/2;
+        alpha[c]  = gamma2[c]/k1/k2;       /* eq.A23,eq.A24 or eq.7 */
+        beta[c]   = -(k1+k2)*alpha[c];     /* eq.A23 or eq.7 */
+        theta1[c] = alpha[c]*PImax/VI[c];
+        theta2[c] = VI[c]/PImax;
+        theta3[c] = gamma2[c]-1/PImax;
 
-        PL[idx_chan]  = ((beta[idx_chan]-theta2[idx_chan]*theta3[idx_chan])/theta1[idx_chan]-1)*PImax;  /* eq.4' */
-        PG[idx_chan]  = 1/(theta3[idx_chan]-1/PL[idx_chan]);                        /* eq.5' */
-        VL[idx_chan]  = theta1[idx_chan]*PL[idx_chan]*PG[idx_chan];                           /* eq.3' */
-        CI[idx_chan]  = Asp/Prest[idx_chan];                              /* CI at rest, from eq.A3,eq.A12 */
-        CL[idx_chan]  = CI[idx_chan]*(Prest[idx_chan]+PL[idx_chan])/PL[idx_chan];                       /* CL at rest, from eq.1 */
+        PL[c]  = ((beta[c]-theta2[c]*theta3[c])/theta1[c]-1)*PImax;  /* eq.4' */
+        PG[c]  = 1/(theta3[c]-1/PL[c]);                        /* eq.5' */
+        VL[c]  = theta1[c]*PL[c]*PG[c];                           /* eq.3' */
+        CI[c]  = Asp/Prest[c];                              /* CI at rest, from eq.A3,eq.A12 */
+        CL[c]  = CI[c]*(Prest[c]+PL[c])/PL[c];                       /* CL at rest, from eq.1 */
 
-        if (kslope[idx_chan] >= 0) vsat[idx_chan] = kslope[idx_chan]+Prest[idx_chan];
-        tmpst[idx_chan] = log(2)*vsat[idx_chan]/Prest[idx_chan];
-        if(tmpst[idx_chan]<400) synstrength[idx_chan] = log(exp(tmpst[idx_chan])-1);
-        else synstrength[idx_chan] = tmpst[idx_chan];
-        synslope[idx_chan] = Prest[idx_chan]/log(2)*synstrength[idx_chan];
+        if (kslope[c] >= 0) vsat[c] = kslope[c]+Prest[c];
+        tmpst[c] = log(2)*vsat[c]/Prest[c];
+        if(tmpst[c]<400) synstrength[c] = log(exp(tmpst[c])-1);
+        else synstrength[c] = tmpst[c];
+        synslope[c] = Prest[c]/log(2)*synstrength[c];
     }
 
     /* Compute the main model loop*/
     for (int n=0; n<totalstim; n++) {
-        for (int idx_chan=0; idx_chan < n_chan; idx_chan++) {
+        for (int c=0; c < n_chan; c++) {
             /* Delay signal according to delay time */
-            if ((n - len_delay_latency[idx_chan]) < 0) {
+            if ((n - len_delay_latency[c]) < 0) {
                 me_curr = 0.0;
             } else {
-                me_curr = meout[n - len_delay_latency[idx_chan]]; 
+                me_curr = meout[n - len_delay_latency[c]]; 
             }
 
             /* Pass signal through control-path filter */
-            wbout1 = WbGammaTone(me_curr, tdres, centerfreq[idx_chan], n, tauwb[idx_chan], wbgain[idx_chan], 3, &wbphase[idx_chan], wbgtf[idx_chan], wbgtfl[idx_chan]);
-            wbout = pow((tauwb[idx_chan]/TauWBMax[idx_chan]), 3) * wbout1 * 10e3 *__max(1, cf[idx_chan]/5e3);
+            wbout1 = WbGammaTone(me_curr, tdres, centerfreq[c], n, tauwb[c], wbgain[c], 3, &wbphase[c], wbgtf[c], wbgtfl[c]);
+            wbout = pow((tauwb[c]/TauWBMax[c]), 3) * wbout1 * 10e3 *__max(1, cf[c]/5e3);
 
             /* Pass the control-path signal through the OHC model (nonlinear transduction and 
             lowpass filtering) */
             ohcnonlinout = Boltzman(wbout, 7.0, 12.0, 5.0, 5.0);
-            ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2, ohc[idx_chan], ohcl[idx_chan]);
-            controlout[idx_chan][n] = NLafterohc(ohcout, bmTaumin[idx_chan], bmTaumax[idx_chan], 7.0);
+            ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2, ohc[c], ohcl[c]);
+            controlout[c][n] = NLafterohc(ohcout, bmTaumin[c], bmTaumax[c], 7.0);
 
             /* Determine time constant and shift of C1 filter poles based on output of OHCs */
-            tauc1 = cohc*(controlout[idx_chan][n]-bmTaumin[idx_chan]) + bmTaumin[idx_chan]; 
-            rsigma = 1/tauc1 - 1/bmTaumax[idx_chan];
-            tauwb[idx_chan] = TauWBMax[idx_chan] + (tauc1-bmTaumax[idx_chan])*(TauWBMax[idx_chan]-TauWBMin[idx_chan])/(bmTaumax[idx_chan]-bmTaumin[idx_chan]);
+            tauc1 = cohc*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c]; 
+            rsigma = 1/tauc1 - 1/bmTaumax[c];
+            tauwb[c] = TauWBMax[c] + (tauc1-bmTaumax[c])*(TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
 
             /* Do some sort of groupdelay manipulation??? TODO Fix this */
-            wb_gain = gain_groupdelay(tdres, centerfreq[idx_chan], cf[idx_chan], tauwb[idx_chan], &grdelay[idx_chan]);
-            if ((grdelay[idx_chan]+n) < totalstim) {
-                tmpgain[idx_chan][grdelay[idx_chan]+n] = wb_gain;
+            wb_gain = gain_groupdelay(tdres, centerfreq[c], cf[c], tauwb[c], &grdelay[c]);
+            if ((grdelay[c]+n) < totalstim) {
+                tmpgain[c][grdelay[c]+n] = wb_gain;
             }
-            if (tmpgain[idx_chan][n] == 0) {
-                tmpgain[idx_chan][n] = lasttmpgain[idx_chan];
+            if (tmpgain[c][n] == 0) {
+                tmpgain[c][n] = lasttmpgain[c];
             }
-            wbgain[idx_chan] = tmpgain[idx_chan][n];
-            lasttmpgain[idx_chan] = wbgain[idx_chan];
+            wbgain[c] = tmpgain[c][n];
+            lasttmpgain[c] = wbgain[c];
 
             /* Apply signal-path C1 filter */
-            c1out[idx_chan][n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma, &C1gain_norm[idx_chan], &C1initphase[idx_chan], C1input[idx_chan], C1output[idx_chan]);
+            c1out[c][n] = C1ChirpFilt(me_curr, tdres, cf[c], n, bmTaumax[c], rsigma, &C1gain_norm[c], &C1initphase[c], C1input[c], C1output[c]);
 
             /* Apply parallel-path C2 filter */
-            c2out[idx_chan][n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], 1/ratiobm[idx_chan], &C2gain_norm[idx_chan], &C2initphase[idx_chan], C2input[idx_chan], C2output[idx_chan]);
+            c2out[c][n] = C2ChirpFilt(me_curr, tdres, cf[c], n, bmTaumax[c], 1/ratiobm[c], &C2gain_norm[c], &C2initphase[c], C2input[c], C2output[c]);
 
             /* Apply IHC model: NL input-output function and lowpass filtering */
-            c1vihctmp  = NLogarithm(cihc*c1out[idx_chan][n], 0.1, 3.0, cf[idx_chan]);
-            c1vihcout[idx_chan][n] = c1vihctmp;  /* store sample output in vector */
-            c2vihctmp = -NLogarithm(c2out[idx_chan][n]*fabs(c2out[idx_chan][n])*cf[idx_chan]/10*cf[idx_chan]/2e3, 0.2, 1.0, cf[idx_chan]); /* C2 transduction output */
-            c2vihcout[idx_chan][n] = c2vihctmp;  /* store sample output in vector */
-            ihcout[idx_chan][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[idx_chan], ihcl[idx_chan]);
+            c1vihctmp  = NLogarithm(cihc*c1out[c][n], 0.1, 3.0, cf[c]);
+            c1vihcout[c][n] = c1vihctmp;  /* store sample output in vector */
+            c2vihctmp = -NLogarithm(c2out[c][n]*fabs(c2out[c][n])*cf[c]/10*cf[c]/2e3, 0.2, 1.0, cf[c]); /* C2 transduction output */
+            c2vihcout[c][n] = c2vihctmp;  /* store sample output in vector */
+            ihcout[c][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[c], ihcl[c]);
 
             /* Apply double-exponential adaptation */
-            tmp = synstrength[idx_chan]*(ihcout[idx_chan][n]);
+            tmp = synstrength[c]*(ihcout[c][n]);
             if(tmp<400) tmp = log(1 + exp(tmp));
-            PPI = synslope[idx_chan]/synstrength[idx_chan]*tmp;
-            CIlast = CI[idx_chan];
-            CI[idx_chan] = CI[idx_chan] + (tdres/VI[idx_chan])*(-PPI*CI[idx_chan] + PL[idx_chan]*(CL[idx_chan]-CI[idx_chan]));
-            CL[idx_chan] = CL[idx_chan] + (tdres/VL[idx_chan])*(-PL[idx_chan]*(CL[idx_chan]-CIlast) + PG[idx_chan]*(CG[idx_chan]-CL[idx_chan]));
-            if (CI[idx_chan] < 0) {
-                temp = 1/PG[idx_chan] + 1/PL[idx_chan] + 1/PPI;
-                CI[idx_chan] = CG[idx_chan]/(PPI*temp);
-                CL[idx_chan] = CI[idx_chan]*(PPI+PL[idx_chan])/PL[idx_chan];
+            PPI = synslope[c]/synstrength[c]*tmp;
+            CIlast = CI[c];
+            CI[c] = CI[c] + (tdres/VI[c])*(-PPI*CI[c] + PL[c]*(CL[c]-CI[c]));
+            CL[c] = CL[c] + (tdres/VL[c])*(-PL[c]*(CL[c]-CIlast) + PG[c]*(CG[c]-CL[c]));
+            if (CI[c] < 0) {
+                temp = 1/PG[c] + 1/PL[c] + 1/PPI;
+                CI[c] = CG[c]/(PPI*temp);
+                CL[c] = CI[c]*(PPI+PL[c])/PL[c];
             }
-            exponOut[idx_chan][n] = CI[idx_chan]*PPI;
+            exponOut[c][n] = CI[c]*PPI;
 
             /* Apply power-law adaptation */
-            sout1[idx_chan][n]  = __max(0, exponOut[idx_chan][n] + randNums[n] - alpha1*I1[idx_chan]);
-            sout2[idx_chan][n] = __max(0, exponOut[idx_chan][n] - alpha2 * I2[idx_chan]);
-            I1[idx_chan] = 0.0; I2[idx_chan] = 0.0;
+            sout1[c][n]  = __max(0, exponOut[c][n] + randNums[n] - alpha1*I1[c]);
+            sout2[c][n] = __max(0, exponOut[c][n] - alpha2 * I2[c]);
+            I1[c] = 0.0; I2[c] = 0.0;
             for (int j = 0; j < n+1; ++j) {
-                I1[idx_chan] += (sout1[idx_chan][j])*tdres/((n-j)*tdres + beta1);
-                I2[idx_chan] += (sout2[idx_chan][j])*tdres/((n-j)*tdres + beta2);
+                I1[c] += (sout1[c][j])*tdres/((n-j)*tdres + beta1);
+                I2[c] += (sout2[c][j])*tdres/((n-j)*tdres + beta2);
             }
-            synout[idx_chan][n] = sout1[idx_chan][n] + sout2[idx_chan][n];
+            synout[c][n] = sout1[c][n] + sout2[c][n];
         }
     }
 
