@@ -199,6 +199,13 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
         }
     }
 
+    /* Initialize variables for the IHC lowpass filter */
+    double *ihc[n_chan], *ihcl[n_chan];
+    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
+        ihc[idx_chan] = (double*) calloc(8, sizeof(double));
+        ihcl[idx_chan] = (double*) calloc(8, sizeof(double));
+    }
+
     /* Temporary */
     double tmp, PPI, CIlast, temp;
 
@@ -230,7 +237,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
 	double C1ChirpFilt(double, double,double, int, double, double, double *, double *, double **, double **);
 	double C2ChirpFilt(double, double,double, int, double, double, double *, double *, double **, double **);
     double NLogarithm(double, double, double, double);
-    double IhcLowPass(double, double, double, int, double, int);
+    double IhcLowPass(double, double, double, int, double, int, double *, double *);
     double delay_cat(double);
     double delay_human(double);
 
@@ -382,7 +389,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
             c1vihcout[idx_chan][n] = c1vihctmp;  /* store sample output in vector */
             c2vihctmp = -NLogarithm(c2out[idx_chan][n]*fabs(c2out[idx_chan][n])*cf[idx_chan]/10*cf[idx_chan]/2e3, 0.2, 1.0, cf[idx_chan]); /* C2 transduction output */
             c2vihcout[idx_chan][n] = c2vihctmp;  /* store sample output in vector */
-            ihcout[idx_chan][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7);
+            ihcout[idx_chan][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[idx_chan], ihcl[idx_chan]);
 
             /* Apply double-exponential adaptation */
             // TODO Still need to decide how to handle remaining "temporary" variables
@@ -420,17 +427,25 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
         free(wbgtfl[i]);
         free(ohc[i]);
         free(ohcl[i]);
+        free(ihc[i]);
+        free(ihcl[i]);
     }
     for (int i = 0; i < n_chan; i++) {
         for (int j = 0; j < 12; j++) {
             free(C1input[i][j]);
             free(C1output[i][j]);
+            free(C2input[i][j]);
+            free(C2output[i][j]);
         }
         free(C1input[i]);
         free(C1output[i]);
+        free(C2input[i]);
+        free(C2output[i]);
     }
     free(C1input);
     free(C1output);
+    free(C2input);
+    free(C2output);
 }
 
 /**
@@ -762,8 +777,8 @@ double OhcLowPass(double x, double tdres, double Fc, int n, double gain, int ord
  * @param gain Scalar gain applied to input
  * @param order Filter order 
  */
-double IhcLowPass(double x, double tdres, double Fc, int n, double gain, int order) {
-    static double ihc[8],ihcl[8];
+double IhcLowPass(double x, double tdres, double Fc, int n, double gain, int order,
+                  double *ihc, double *ihcl) {
     double C,c1LP,c2LP;
     int i,j;
 
