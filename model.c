@@ -80,27 +80,23 @@
  * @param spont Float indicating what fiber type to simulate (100.0==HSR, 4.0==MSR, 0.1==LSR)
  * @param meout Vector to store output of middle-ear filter, size (totalstim, )
  * @param controlout Matrix to store output of control-path filter, size (n_chan, totalstim)
- * @param c1out Vector to store output of signal-path C1 filter, size (totalstim, )
- * @param c1vihcout Vector to store output of signal-path C1 filter after IHC transduction, 
- *   size (totalstim, )
- * @param c2out Vector to store output of signal-path C2 filter, size (totalstim, )
- * @param c2vihcout Vector to store output of signal-path C2 filter after IHC transduction, 
- *   size (totalstim, )
- * @param ihcout Vector to store output of inner hair cell, size (totalstim, )
- * @param synout Vector to store output of synapse, size (totalstim, )
- * @param exponOut Vector to store output of exponential adaptation stage, size (totalstim, )
- * @param sout1 Vector to store output of slow power-law adaptation stage, size (totalstim, )
- * @param sout2 Vector to store output of fast power-law adaptation stage, size (totalstim, )
+ * @param c1out Matrix to store output of signal-path C1 filter, size (n_chan, totalstim)
+ * @param c1vihcout Matrix to store output of signal-path C1 filter after IHC transduction, 
+ *   size (n_chan, totalstim)
+ * @param c2out Matrix to store output of signal-path C2 filter, size (n_chan, totalstim)
+ * @param c2vihcout Matrix to store output of signal-path C2 filter after IHC transduction, 
+ *   size (n_chan, totalstim)
+ * @param ihcout Matrix to store output of inner hair cell, size (n_chan, totalstim)
+ * @param synout Matrix to store output of synapse, size (n_chan, totalstim)
+ * @param exponOut Matrix to store output of exponential adaptation stage, size (n_chan, totalstim)
+ * @param sout1 Matrix to store output of slow power-law adaptation stage, size (n_chan, totalstim)
+ * @param sout2 Matrix to store output of fast power-law adaptation stage, size (n_chan, totalstim)
  */
-void model(double *px, double *randNums, double *cf, int n_chan, double tdres, int totalstim,
-           double cohc, double cihc, int species, double spont, 
-           double *meout, double **controlout, double **c1out, 
-           double **c1vihcout, double **c2out, double **c2vihcout, double **ihcout, 
-           double **synout, double **exponOut, double **sout1, 
-           double **sout2) {
-    /* Delcare new used variables */
-    int idx_chan = 0;
-
+void model(double *px, double *randNums, double *cf, int n_chan, double tdres, 
+           int totalstim, double cohc, double cihc, int species, double spont, 
+           double *meout, double **controlout, double **c1out, double **c1vihcout, 
+           double **c2out, double **c2vihcout, double **ihcout, double **synout, 
+           double **exponOut, double **sout1, double **sout2) {
     /* Declare variables for BM stage requiring dynamic allocation, and allocate */
     double *tmpgain[n_chan];
     for (int i = 0; i < n_chan; i++) {
@@ -122,28 +118,28 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
     double wbphase[n_chan];
     COMPLEX *wbgtf[n_chan];
     COMPLEX *wbgtfl[n_chan];
-    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
-        wbgtf[idx_chan] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
-        wbgtfl[idx_chan] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
-        wbphase[idx_chan] = 0.0;
-        for (int i = 0; i < 4; i++) {
-            wbgtfl[idx_chan][i] = compmult(0, compexp(0));
-            wbgtf[idx_chan][i]  = compmult(0, compexp(0));
+    for (int i = 0; i < n_chan; i++) {
+        wbgtf[i] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
+        wbgtfl[i] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
+        wbphase[i] = 0.0;
+        for (int j = 0; j < 4; j++) {
+            wbgtfl[i][j] = compmult(0, compexp(0));
+            wbgtf[i][j]  = compmult(0, compexp(0));
         }
     }
 
     /* Delcare and initialize state variables for OhcLowPass filter */
     double *ohc[n_chan], *ohcl[n_chan];
-    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
-        ohc[idx_chan] = (double*) calloc(4, sizeof(double));
-        ohcl[idx_chan] = (double*) calloc(4, sizeof(double));
+    for (int i = 0; i < n_chan; i++) {
+        ohc[i] = (double*) calloc(4, sizeof(double));
+        ohcl[i] = (double*) calloc(4, sizeof(double));
     }
 
     /* Delcare and initialize state variables for C1ChirpFilt filter */
     double C1gain_norm[n_chan], C1initphase[n_chan];
-    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
-        C1gain_norm[idx_chan] = 0.0;
-        C1initphase[idx_chan] = 0.0;
+    for (int i = 0; i < n_chan; i++) {
+        C1gain_norm[i] = 0.0;
+        C1initphase[i] = 0.0;
     }
 
     double*** C1input = (double***) malloc(n_chan * sizeof(double**));
@@ -171,9 +167,9 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
 
     /* Declare and initialize state variables for C2ChirpFilt filter */
     double C2gain_norm[n_chan], C2initphase[n_chan];
-    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
-        C2gain_norm[idx_chan] = 0.0;
-        C2initphase[idx_chan] = 0.0;
+    for (int i = 0; i < n_chan; i++) {
+        C2gain_norm[i] = 0.0;
+        C2initphase[i] = 0.0;
     }
 
     double*** C2input = (double***) malloc(n_chan * sizeof(double**));
@@ -201,9 +197,9 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
 
     /* Initialize variables for the IHC lowpass filter */
     double *ihc[n_chan], *ihcl[n_chan];
-    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
-        ihc[idx_chan] = (double*) calloc(8, sizeof(double));
-        ihcl[idx_chan] = (double*) calloc(8, sizeof(double));
+    for (int i = 0; i < n_chan; i++) {
+        ihc[i] = (double*) calloc(8, sizeof(double));
+        ihcl[i] = (double*) calloc(8, sizeof(double));
     }
 
     /* Temporary */
@@ -245,7 +241,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
     middle_ear(px, tdres, totalstim, species, meout);
 
     /* Calculate all parameters, coefficients, etc. for each channel */
-    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
+    for (int idx_chan = 0; idx_chan < n_chan; idx_chan++) {
         /* Calculate the center frequency for the control-path wideband filter as center
         frequency corresponding to a 1.2-mm basal shift from requested CF.
 
@@ -394,7 +390,6 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
             ihcout[idx_chan][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[idx_chan], ihcl[idx_chan]);
 
             /* Apply double-exponential adaptation */
-            // TODO Still need to decide how to handle remaining "temporary" variables
             tmp = synstrength[idx_chan]*(ihcout[idx_chan][n]);
             if(tmp<400) tmp = log(1 + exp(tmp));
             PPI = synslope[idx_chan]/synstrength[idx_chan]*tmp;
