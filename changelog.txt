@@ -1,3 +1,8 @@
+0.1.1 
+      - Converted all calculations, inputs, outputs, etc. to multichannel 
+      - Modified all functions using static arrays to preserve state across samples to use
+        instead state variables passed in and out of functions via pointers, so they can be 
+        dynamically sized at runtime based on the number of channels requested
 0.0.13 
       - Improved documentation for main function
       - Cleaned up main function signature (eliminated noiseType, implnt, powerLawIn,
