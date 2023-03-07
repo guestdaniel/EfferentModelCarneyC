@@ -210,7 +210,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
     double tmp, PPI, CIlast, temp;
 
     /* Declare variables used in the AN stage that are fixed across channels */
-    double alpha1, beta1, alpha2, beta2, I1, I2, PImax, Asp, TauR, TauST, Ar_Ast, PTS,
+    double alpha1, beta1, alpha2, beta2, PImax, Asp, TauR, TauST, Ar_Ast, PTS,
            k1, k2;
 
     /* Declare variables used in the AN stage that vary by channel */
@@ -219,7 +219,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
            VI0[n_chan], VI1[n_chan], VI[n_chan], alpha[n_chan], beta[n_chan], 
            theta1[n_chan], theta2[n_chan], theta3[n_chan], PL[n_chan], PG[n_chan],
            CI[n_chan], CL[n_chan], VL[n_chan], vsat[n_chan], tmpst[n_chan], 
-           synstrength[n_chan], synslope[n_chan];
+           synstrength[n_chan], synslope[n_chan], I1[n_chan], I2[n_chan];
 
     /* Declare variables used in the AN stage to temporarily store outputs */
 
@@ -286,10 +286,12 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
         /* Set parameters for power-law adaptation */
         alpha1 = 2.5e-6*100e3; 
         beta1  = 5e-4; 
-        I1     = 0;
         alpha2 = 1e-2*100e3; 
         beta2  = 1e-1; 
-        I2     = 0;
+        for (int i = 0; i < n_chan; i++) {
+            I1[i] = 0.0;
+            I2[i] = 0.0;
+        }
 
         /* Set parameters for double-exponential adaptation (based on fiber type / spont) */
         if (spont == 100) {
@@ -407,12 +409,12 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
             exponOut[idx_chan][n] = CI[idx_chan]*PPI;
 
             /* Apply power-law adaptation */
-            sout1[idx_chan][n]  = __max(0, exponOut[idx_chan][n] + randNums[n] - alpha1*I1);
-            sout2[idx_chan][n] = __max(0, exponOut[idx_chan][n] - alpha2 * I2);
-            I1 = 0; I2 = 0;
+            sout1[idx_chan][n]  = __max(0, exponOut[idx_chan][n] + randNums[n] - alpha1*I1[idx_chan]);
+            sout2[idx_chan][n] = __max(0, exponOut[idx_chan][n] - alpha2 * I2[idx_chan]);
+            I1[idx_chan] = 0.0; I2[idx_chan] = 0.0;
             for (int j = 0; j < n+1; ++j) {
-                I1 += (sout1[idx_chan][j])*tdres/((n-j)*tdres + beta1);
-                I2 += (sout2[idx_chan][j])*tdres/((n-j)*tdres + beta2);
+                I1[idx_chan] += (sout1[idx_chan][j])*tdres/((n-j)*tdres + beta1);
+                I2[idx_chan] += (sout2[idx_chan][j])*tdres/((n-j)*tdres + beta2);
             }
             synout[idx_chan][n] = sout1[idx_chan][n] + sout2[idx_chan][n];
         }
