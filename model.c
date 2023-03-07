@@ -132,6 +132,13 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
         }
     }
 
+    /* Delcare and initialize state variables for OhcLowPass filter */
+    double *ohc[n_chan], *ohcl[n_chan];
+    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
+        ohc[idx_chan] = (double*) calloc(4, sizeof(double));
+        ohcl[idx_chan] = (double*) calloc(4, sizeof(double));
+    }
+
     /* Temporary */
     double tmp, PPI, CIlast, temp;
 
@@ -159,7 +166,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
     double WbGammaTone(double, double, double, int, double, double, int, double *, COMPLEX *, COMPLEX *);
 	double Boltzman(double, double, double, double, double);
     double NLafterohc(double, double, double, double);
-    double OhcLowPass(double, double, double, int, double, int);
+    double OhcLowPass(double, double, double, int, double, int, double *, double *);
 	double C1ChirpFilt(double, double,double, int, double, double);
 	double C2ChirpFilt(double, double,double, int, double, double);
     double NLogarithm(double, double, double, double);
@@ -285,7 +292,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
             /* Pass the control-path signal through the OHC model (nonlinear transduction and 
             lowpass filtering) */
             ohcnonlinout = Boltzman(wbout, 7.0, 12.0, 5.0, 5.0);
-            ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2);
+            ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2, ohc[idx_chan], ohcl[idx_chan]);
             controlout[idx_chan][n] = NLafterohc(ohcout, bmTaumin[idx_chan], bmTaumax[idx_chan], 7.0);
 
             /* Determine time constant and shift of C1 filter poles based on output of OHCs */
@@ -637,18 +644,19 @@ double Boltzman(double x, double asym, double s0, double s1, double x1){
  * @param gain Scalar gain applied to input
  * @param order Filter order 
  */
-double OhcLowPass(double x, double tdres, double Fc, int n, double gain, int order) {
-    static double ohc[4],ohcl[4];
+double OhcLowPass(double x, double tdres, double Fc, int n, double gain, int order,
+                  double *ohc, double *ohcl) {
+    // static double ohc[4],ohcl[4];
     double c,c1LP,c2LP;
     int i,j;
 
     /* If we're on the first sample, initialize static memory to zeros */
-    if (n == 0) {
-        for (i=0; i<(order+1); i++) {
-            ohc[i] = 0;
-            ohcl[i] = 0;
-        }
-    }    
+    // if (n == 0) {
+    //     for (i=0; i<(order+1); i++) {
+    //         ohc[i] = 0;
+    //         ohcl[i] = 0;
+    //     }
+    // }    
 
     /* Calculate filter coefficients */ 
     c = 2.0/tdres;
