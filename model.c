@@ -92,7 +92,7 @@
  * @param sout1 Vector to store output of slow power-law adaptation stage, size (totalstim, )
  * @param sout2 Vector to store output of fast power-law adaptation stage, size (totalstim, )
  */
-void model(double *px, double *randNums, double *cf, double tdres, int totalstim,
+void model(double *px, double *randNums, double *cf, int n_chan, double tdres, int totalstim,
            double cohc, double cihc, int species, double spont, 
            double *meout, double **controlout, double **c1out, 
            double **c1vihcout, double **c2out, double **c2vihcout, double **ihcout, 
@@ -100,7 +100,6 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
            double **sout2) {
     /* Delcare new used variables */
     int idx_chan = 0;
-    int n_chan = 1;
 
     /* Declare variables for BM stage requiring dynamic allocation, and allocate */
     double *tmpgain[n_chan];
@@ -118,6 +117,20 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
            TauWBMax[n_chan], TauWBMin[n_chan], tauwb[n_chan], wbgain[n_chan],
            delay_latency[n_chan], lasttmpgain[n_chan];
     int grdelay[n_chan], len_delay_latency[n_chan];
+
+    /* Declare and initialize state variables for WbGammaTone filter */
+    double wbphase[n_chan];
+    COMPLEX *wbgtf[n_chan];
+    COMPLEX *wbgtfl[n_chan];
+    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
+        wbgtf[idx_chan] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
+        wbgtfl[idx_chan] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
+        wbphase[idx_chan] = 0.0;
+        // for (int i = 0; i < 4; i++) {
+        //     wbgtfl[idx_chan][i] = compmult(0, compexp(0));
+        //     wbgtf[idx_chan][i]  = compmult(0, compexp(0));
+        // }
+    }
 
     /* Temporary */
     double tmp, PPI, CIlast, temp;
@@ -143,7 +156,7 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
     void Get_tauwb(int, double *, int, int, double *, double *);
 	void Get_taubm(int, double *, int, double *, double *, double *, double *);
     double gain_groupdelay(int, double, double *, double *, double *, int *);
-    double WbGammaTone(double, double, double, int, double, double, int);
+    double WbGammaTone(double, double, double, int, double, double, int, double, COMPLEX *, COMPLEX *);
 	double Boltzman(double, double, double, double, double);
     double NLafterohc(double, double, double, double);
     double OhcLowPass(double, double, double, int, double, int);
@@ -266,7 +279,7 @@ void model(double *px, double *randNums, double *cf, double tdres, int totalstim
             }
 
             /* Pass signal through control-path filter */
-            wbout1 = WbGammaTone(me_curr, tdres, centerfreq[idx_chan], n, tauwb[idx_chan], wbgain[idx_chan], 3);
+            wbout1 = WbGammaTone(me_curr, tdres, centerfreq[idx_chan], n, tauwb[idx_chan], wbgain[idx_chan], 3, wbphase[idx_chan], wbgtf[idx_chan], wbgtfl[idx_chan]);
             wbout = pow((tauwb[idx_chan]/TauWBMax[idx_chan]), 3) * wbout1 * 10e3 *__max(1, cf[idx_chan]/5e3);
 
             /* Pass the control-path signal through the OHC model (nonlinear transduction and 
@@ -759,23 +772,25 @@ double NLogarithm(double x, double slope, double asym, double cf) {
     return(xx);
 }
 
-double WbGammaTone(double x,double tdres,double centerfreq, int n, double tau,double gain,int order)
+double WbGammaTone(double x, double tdres, double centerfreq, int n, double tau, 
+                   double gain, int order, double temp1, COMPLEX *temp2, 
+                   COMPLEX *temp3)
 {
   static double wbphase;
   static COMPLEX wbgtf[4], wbgtfl[4];
 
   double delta_phase,dtmp,c1LP,c2LP,out;
   int i,j;
-  
-  if (n==0)
-  {
-      wbphase = 0;
-      for(i=0; i<=order;i++)
-      {
-            wbgtfl[i] = compmult(0,compexp(0));
-            wbgtf[i]  = compmult(0,compexp(0));
-      }
-  }
+
+if (n==0)
+{
+    wbphase = 0;
+    for (i=0; i<=order; i++)
+    {
+        wbgtfl[i] = compmult(0, compexp(0));
+        wbgtf[i] = compmult(0, compexp(0));
+    }
+}
   
   delta_phase = -TWOPI*centerfreq*tdres;
   wbphase += delta_phase;
@@ -786,7 +801,7 @@ double WbGammaTone(double x,double tdres,double centerfreq, int n, double tau,do
   wbgtf[0] = compmult(x,compexp(wbphase));                 /* FREQUENCY SHIFT */
   
   for(j = 1; j <= order; j++)                              /* IIR Bilinear transformation LPF */
-  wbgtf[j] = comp2sum(compmult(c2LP*gain,comp2sum(wbgtf[j-1],wbgtfl[j-1])),
+  wbgtf[j] = comp2sum(compmult(c2LP*gain, comp2sum(wbgtf[j-1],wbgtfl[j-1])),
       compmult(c1LP,wbgtfl[j]));
   out = REAL(compprod(compexp(-wbphase), wbgtf[order])); /* FREQ SHIFT BACK UP */
   
