@@ -141,11 +141,32 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
 
     /* Delcare and initialize state variables for C1ChirpFilt filter */
     double C1gain_norm[n_chan], C1initphase[n_chan];
-    double temp1[n_chan];
-    double temp2[n_chan];
     for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
         C1gain_norm[idx_chan] = 0.0;
         C1initphase[idx_chan] = 0.0;
+    }
+
+    double*** C1input = (double***) malloc(n_chan * sizeof(double**));
+    for (int i = 0; i < n_chan; i++) {
+        C1input[i] = (double**) malloc(12 * sizeof(double*));
+        for (int j = 0; j < 12; j++) {
+            C1input[i][j] = (double*) malloc(4 * sizeof(double));
+        }
+    }
+    double*** C1output = (double***) malloc(n_chan * sizeof(double**));
+    for (int i = 0; i < n_chan; i++) {
+        C1output[i] = (double**) malloc(12 * sizeof(double*));
+        for (int j = 0; j < 12; j++) {
+            C1output[i][j] = (double*) malloc(4 * sizeof(double));
+        }
+    }
+    for (int i = 0; i < n_chan; i++) {
+        for (int j = 0; j < 12; j++) {
+            for (int k = 0; k < 4; k++) {
+                C1input[i][j][k] = 0.0;
+                C1output[i][j][k] = 0.0;
+            }
+        }
     }
 
     /* Temporary */
@@ -176,7 +197,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
 	double Boltzman(double, double, double, double, double);
     double NLafterohc(double, double, double, double);
     double OhcLowPass(double, double, double, int, double, int, double *, double *);
-	double C1ChirpFilt(double, double,double, int, double, double, double *, double *, double *, double*);
+	double C1ChirpFilt(double, double,double, int, double, double, double *, double *, double **, double **);
 	double C2ChirpFilt(double, double,double, int, double, double);
     double NLogarithm(double, double, double, double);
     double IhcLowPass(double, double, double, int, double, int);
@@ -321,7 +342,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
             lasttmpgain[idx_chan] = wbgain[idx_chan];
 
             /* Apply signal-path C1 filter */
-            c1out[idx_chan][n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma, &C1gain_norm[idx_chan], &C1initphase[idx_chan], temp1, temp2);
+            c1out[idx_chan][n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma, &C1gain_norm[idx_chan], &C1initphase[idx_chan], C1input[idx_chan], C1output[idx_chan]);
 
             /* Apply parallel-path C2 filter */
             c2out[idx_chan][n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], 1/ratiobm[idx_chan]);
@@ -364,6 +385,22 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
     for (int i = 0; i < n_chan; i++) {
         free(tmpgain[i]);
     }
+    for (int i = 0; i < n_chan; i++) {
+        free(wbgtf[i]);
+        free(wbgtfl[i]);
+        free(ohc[i]);
+        free(ohcl[i]);
+    }
+    for (int i = 0; i < n_chan; i++) {
+        for (int j = 0; j < 12; j++) {
+            free(C1input[i][j]);
+            free(C1output[i][j]);
+        }
+        free(C1input[i]);
+        free(C1output[i]);
+    }
+    free(C1input);
+    free(C1output);
 }
 
 /**
@@ -812,10 +849,10 @@ double WbGammaTone(double x, double tdres, double centerfreq, int n, double tau,
 }
 
 double C1ChirpFilt(double x, double tdres,double cf, int n, double taumax, double rsigma,
-                   double *C1gain_norm, double *C1initphase, double *temp2, 
-                   double *temp3)
+                   double *C1gain_norm, double *C1initphase, double **C1input, 
+                   double **C1output)
 {
-    static double C1input[12][4], C1output[12][4];
+    // static double C1input[12][4], C1output[12][4];
 
     double ipw, ipb, rpa, pzero, rzero;
 	double sigma0,fs_bilinear,CF,norm_gain,phase,c1filterout;
