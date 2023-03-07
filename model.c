@@ -169,6 +169,36 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
         }
     }
 
+    /* Declare and initialize state variables for C2ChirpFilt filter */
+    double C2gain_norm[n_chan], C2initphase[n_chan];
+    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
+        C2gain_norm[idx_chan] = 0.0;
+        C2initphase[idx_chan] = 0.0;
+    }
+
+    double*** C2input = (double***) malloc(n_chan * sizeof(double**));
+    for (int i = 0; i < n_chan; i++) {
+        C2input[i] = (double**) malloc(12 * sizeof(double*));
+        for (int j = 0; j < 12; j++) {
+            C2input[i][j] = (double*) malloc(4 * sizeof(double));
+        }
+    }
+    double*** C2output = (double***) malloc(n_chan * sizeof(double**));
+    for (int i = 0; i < n_chan; i++) {
+        C2output[i] = (double**) malloc(12 * sizeof(double*));
+        for (int j = 0; j < 12; j++) {
+            C2output[i][j] = (double*) malloc(4 * sizeof(double));
+        }
+    }
+    for (int i = 0; i < n_chan; i++) {
+        for (int j = 0; j < 12; j++) {
+            for (int k = 0; k < 4; k++) {
+                C2input[i][j][k] = 0.0;
+                C2output[i][j][k] = 0.0;
+            }
+        }
+    }
+
     /* Temporary */
     double tmp, PPI, CIlast, temp;
 
@@ -198,7 +228,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
     double NLafterohc(double, double, double, double);
     double OhcLowPass(double, double, double, int, double, int, double *, double *);
 	double C1ChirpFilt(double, double,double, int, double, double, double *, double *, double **, double **);
-	double C2ChirpFilt(double, double,double, int, double, double);
+	double C2ChirpFilt(double, double,double, int, double, double, double *, double *, double **, double **);
     double NLogarithm(double, double, double, double);
     double IhcLowPass(double, double, double, int, double, int);
     double delay_cat(double);
@@ -345,7 +375,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
             c1out[idx_chan][n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma, &C1gain_norm[idx_chan], &C1initphase[idx_chan], C1input[idx_chan], C1output[idx_chan]);
 
             /* Apply parallel-path C2 filter */
-            c2out[idx_chan][n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], 1/ratiobm[idx_chan]);
+            c2out[idx_chan][n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], 1/ratiobm[idx_chan], &C2gain_norm[idx_chan], &C2initphase[idx_chan], C2input[idx_chan], C2output[idx_chan]);
 
             /* Apply IHC model: NL input-output function and lowpass filtering */
             c1vihctmp  = NLogarithm(cihc*c1out[idx_chan][n], 0.1, 3.0, cf[idx_chan]);
@@ -991,11 +1021,10 @@ double C1ChirpFilt(double x, double tdres,double cf, int n, double taumax, doubl
 /* -------------------------------------------------------------------------------------------- */
 /** Parallelpath C2 filter: same as the signal-path C1 filter with the OHC completely impaired */
 
-double C2ChirpFilt(double xx, double tdres,double cf, int n, double taumax, double fcohc)
+double C2ChirpFilt(double xx, double tdres,double cf, int n, double taumax, double fcohc,
+                   double *C2gain_norm, double *C2initphase, double **C2input, 
+                   double **C2output)
 {
-	static double C2gain_norm, C2initphase;
-    static double C2input[12][4];  static double C2output[12][4];
-   
 	double ipw, ipb, rpa, pzero, rzero;
 
 	double sigma0,fs_bilinear,CF,norm_gain,phase,c2filterout;
@@ -1035,12 +1064,12 @@ double C2ChirpFilt(double xx, double tdres,double cf, int n, double taumax, doub
 
     p[7] = p[1]; p[8] = p[2]; p[9] = p[5]; p[10]= p[6];
 
-	   C2initphase = 0.0;
+	   (*C2initphase) = 0.0;
        for (i=1;i<=half_order_pole;i++)         
 	   {
            preal     = p[i*2-1].x;
 		   pimg      = p[i*2-1].y;
-	       C2initphase = C2initphase + atan(CF/(-rzero))-atan((CF-pimg)/(-preal))-atan((CF+pimg)/(-preal));
+	       (*C2initphase) = (*C2initphase) + atan(CF/(-rzero))-atan((CF-pimg)/(-preal))-atan((CF+pimg)/(-preal));
 	   };
 
 	/*===================== Initialize C2input & C2output =====================*/
@@ -1057,12 +1086,12 @@ double C2ChirpFilt(double xx, double tdres,double cf, int n, double taumax, doub
     
     /*===================== normalize the gain =====================*/
     
-     C2gain_norm = 1.0;
+     (*C2gain_norm) = 1.0;
      for (r=1; r<=order_of_pole; r++)
-		   C2gain_norm = C2gain_norm*(pow((CF - p[r].y),2) + p[r].x*p[r].x);
+		   (*C2gain_norm) = (*C2gain_norm)*(pow((CF - p[r].y),2) + p[r].x*p[r].x);
     };
      
-    norm_gain= sqrt(C2gain_norm)/pow(sqrt(CF*CF+rzero*rzero),order_of_zero);
+    norm_gain= sqrt((*C2gain_norm))/pow(sqrt(CF*CF+rzero*rzero),order_of_zero);
     
 	p[1].x = -sigma0*fcohc;
 
@@ -1084,7 +1113,7 @@ double C2ChirpFilt(double xx, double tdres,double cf, int n, double taumax, doub
 	       phase = phase-atan((CF-pimg)/(-preal))-atan((CF+pimg)/(-preal));
 	};
 
-	rzero = -CF/tan((C2initphase-phase)/order_of_zero);	
+	rzero = -CF/tan(((*C2initphase)-phase)/order_of_zero);	
    /*%==================================================  */
    /*%      time loop begins here                         */
    /*%==================================================  */
