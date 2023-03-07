@@ -139,6 +139,15 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
         ohcl[idx_chan] = (double*) calloc(4, sizeof(double));
     }
 
+    /* Delcare and initialize state variables for C1ChirpFilt filter */
+    double C1gain_norm[n_chan], C1initphase[n_chan];
+    double temp1[n_chan];
+    double temp2[n_chan];
+    for (idx_chan = 0; idx_chan < n_chan; idx_chan++) {
+        C1gain_norm[idx_chan] = 0.0;
+        C1initphase[idx_chan] = 0.0;
+    }
+
     /* Temporary */
     double tmp, PPI, CIlast, temp;
 
@@ -162,12 +171,12 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
 	void Get_taubm(int, double *, int, double *, double *, double *, double *);
-    double gain_groupdelay(int, double, double *, double *, double *, int *);
+    double gain_groupdelay(double, double, double, double, int *);
     double WbGammaTone(double, double, double, int, double, double, int, double *, COMPLEX *, COMPLEX *);
 	double Boltzman(double, double, double, double, double);
     double NLafterohc(double, double, double, double);
     double OhcLowPass(double, double, double, int, double, int, double *, double *);
-	double C1ChirpFilt(double, double,double, int, double, double);
+	double C1ChirpFilt(double, double,double, int, double, double, double *, double *, double *, double*);
 	double C2ChirpFilt(double, double,double, int, double, double);
     double NLogarithm(double, double, double, double);
     double IhcLowPass(double, double, double, int, double, int);
@@ -208,7 +217,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
         TauWBMax[idx_chan] = Taumin[idx_chan] + 0.2*(Taumax[idx_chan]-Taumin[idx_chan]); // Eq 4 - [[2006]]
         TauWBMin[idx_chan] = TauWBMax[idx_chan]/Taumax[idx_chan]*Taumin[idx_chan];
         tauwb[idx_chan] = TauWBMax[idx_chan] + (bmTaubm[idx_chan]-bmTaumax[idx_chan])*(TauWBMax[idx_chan]-TauWBMin[idx_chan])/(bmTaumax[idx_chan]-bmTaumin[idx_chan]);
-        wbgain[idx_chan] = gain_groupdelay(idx_chan, tdres, centerfreq, cf, tauwb, grdelay);
+        wbgain[idx_chan] = gain_groupdelay(tdres, centerfreq[idx_chan], cf[idx_chan], tauwb[idx_chan], &grdelay[idx_chan]);
         tmpgain[idx_chan][0] = wbgain[idx_chan];
         lasttmpgain[idx_chan] = wbgain[idx_chan];
 
@@ -301,7 +310,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
             tauwb[idx_chan] = TauWBMax[idx_chan] + (tauc1-bmTaumax[idx_chan])*(TauWBMax[idx_chan]-TauWBMin[idx_chan])/(bmTaumax[idx_chan]-bmTaumin[idx_chan]);
 
             /* Do some sort of groupdelay manipulation??? TODO Fix this */
-            wb_gain = gain_groupdelay(idx_chan, tdres, centerfreq, cf, tauwb, grdelay);
+            wb_gain = gain_groupdelay(tdres, centerfreq[idx_chan], cf[idx_chan], tauwb[idx_chan], &grdelay[idx_chan]);
             if ((grdelay[idx_chan]+n) < totalstim) {
                 tmpgain[idx_chan][grdelay[idx_chan]+n] = wb_gain;
             }
@@ -312,7 +321,7 @@ void model(double *px, double *randNums, double *cf, int n_chan, double tdres, i
             lasttmpgain[idx_chan] = wbgain[idx_chan];
 
             /* Apply signal-path C1 filter */
-            c1out[idx_chan][n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma);
+            c1out[idx_chan][n] = C1ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], rsigma, &C1gain_norm[idx_chan], &C1initphase[idx_chan], temp1, temp2);
 
             /* Apply parallel-path C2 filter */
             c2out[idx_chan][n] = C2ChirpFilt(me_curr, tdres, cf[idx_chan], n, bmTaumax[idx_chan], 1/ratiobm[idx_chan]);
@@ -541,13 +550,12 @@ void Get_taubm(int idx_chan, double *cf, int species, double *taumax, double *bm
  * @param tau ???
  * @param grdelay ???
  */
-double gain_groupdelay(int idx_chan, double tdres, double *centerfreq, double *cf, double *tau,
-                     int *grdelay) { 
+double gain_groupdelay(double tdres, double centerfreq, double cf, double tau, int *grdelay) { 
     double tmpcos,dtmp2,c1LP,c2LP,tmp1,tmp2,wb_gain;
 
     /* Calculate constants and parameters */
-    tmpcos = cos(TWOPI*(centerfreq[idx_chan]-cf[idx_chan])*tdres);
-    dtmp2 = tau[idx_chan]*2.0/tdres;
+    tmpcos = cos(TWOPI*(centerfreq-cf)*tdres);
+    dtmp2 = tau*2.0/tdres;
     c1LP = (dtmp2-1)/(dtmp2+1);
     c2LP = 1.0/(dtmp2+1);
     tmp1 = 1+c1LP*c1LP-2*c1LP*tmpcos;
@@ -557,7 +565,7 @@ double gain_groupdelay(int idx_chan, double tdres, double *centerfreq, double *c
     wb_gain = pow(tmp1/tmp2, 1.0/2.0);
 
     /* Calculate ??? */
-    grdelay[idx_chan] = (int)floor((0.5-(c1LP*c1LP-c1LP*tmpcos)/(1+c1LP*c1LP-2*c1LP*tmpcos)));
+    (*grdelay) = (int)floor((0.5-(c1LP*c1LP-c1LP*tmpcos)/(1+c1LP*c1LP-2*c1LP*tmpcos)));
 
     return(wb_gain);
 }
@@ -803,9 +811,10 @@ double WbGammaTone(double x, double tdres, double centerfreq, int n, double tau,
   return(out);
 }
 
-double C1ChirpFilt(double x, double tdres,double cf, int n, double taumax, double rsigma)
+double C1ChirpFilt(double x, double tdres,double cf, int n, double taumax, double rsigma,
+                   double *C1gain_norm, double *C1initphase, double *temp2, 
+                   double *temp3)
 {
-    static double C1gain_norm, C1initphase; 
     static double C1input[12][4], C1output[12][4];
 
     double ipw, ipb, rpa, pzero, rzero;
@@ -847,12 +856,12 @@ double C1ChirpFilt(double x, double tdres,double cf, int n, double taumax, doubl
 
     p[7]   = p[1]; p[8] = p[2]; p[9] = p[5]; p[10]= p[6];
 
-	   C1initphase = 0.0;
+	   (*C1initphase) = 0.0;
        for (i=1;i<=half_order_pole;i++)          
 	   {
            preal     = p[i*2-1].x;
 		   pimg      = p[i*2-1].y;
-	       C1initphase = C1initphase + atan(CF/(-rzero))-atan((CF-pimg)/(-preal))-atan((CF+pimg)/(-preal));
+	       (*C1initphase) = (*C1initphase) + atan(CF/(-rzero))-atan((CF-pimg)/(-preal))-atan((CF+pimg)/(-preal));
 	   };
 
 	/*===================== Initialize C1input & C1output =====================*/
@@ -869,13 +878,13 @@ double C1ChirpFilt(double x, double tdres,double cf, int n, double taumax, doubl
 
 	/*===================== normalize the gain =====================*/
     
-      C1gain_norm = 1.0;
+      (*C1gain_norm) = 1.0;
       for (r=1; r<=order_of_pole; r++)
-		   C1gain_norm = C1gain_norm*(pow((CF - p[r].y),2) + p[r].x*p[r].x);
+		   (*C1gain_norm) = (*C1gain_norm)*(pow((CF - p[r].y),2) + p[r].x*p[r].x);
       
    };
      
-    norm_gain= sqrt(C1gain_norm)/pow(sqrt(CF*CF+rzero*rzero),order_of_zero);
+    norm_gain= sqrt((*C1gain_norm))/pow(sqrt(CF*CF+rzero*rzero),order_of_zero);
 	
 	p[1].x = -sigma0 - rsigma;
 
@@ -897,7 +906,7 @@ double C1ChirpFilt(double x, double tdres,double cf, int n, double taumax, doubl
 	       phase = phase-atan((CF-pimg)/(-preal))-atan((CF+pimg)/(-preal));
 	};
 
-	rzero = -CF/tan((C1initphase-phase)/order_of_zero);
+	rzero = -CF/tan(((*C1initphase)-phase)/order_of_zero);
 
    /*%==================================================  */
 	/*each loop below is for a pair of poles and one zero */
