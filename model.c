@@ -89,6 +89,11 @@
  *   3==human[glasberg])
  * @param spont Float indicating what fiber type to simulate (100.0==HSR, 4.0==MSR, 
  *   0.1==LSR)
+ * @param cn_tau_e Excitatory path time constant (s) for SFIE cochlear nucleus stage
+ * @param cn_tau_i Inhibitory path time constant (s) for SFIE cochlear nucleus stage
+ * @param cn_delay Inhibitory path delay time (s) for SFIE cochlear nucleus stage
+ * @param cn_amp Overall amplitude scalar for SFIE cochlear nucleus stage
+ * @param cn_inh Inhibition strength scalar for SFIE cochlear nucleus stage
  * @param controlout Matrix to store output of control-path filter, size (n_chan, totalstim)
  * @param c1out Matrix to store output of signal-path C1 filter, size (n_chan, totalstim)
  * @param c2out Matrix to store output of signal-path C2 filter, size (n_chan, totalstim)
@@ -97,11 +102,14 @@
  * @param sout1 Matrix to store output of slow power-law adaptation stage, size (n_chan, totalstim)
  * @param sout2 Matrix to store output of fast power-law adaptation stage, size (n_chan, totalstim)
  * @param synout Matrix to store output of synapse, size (n_chan, totalstim)
+ * @param cnout Matrix to store output of cochlear nucleus, size (n_chan, totalstim)
  */
 void model(double *px, double **randNums, double *cf, int n_chan, double tdres, 
            int totalstim, double cohc, double cihc, int species, double spont, 
+           double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
            double **controlout, double **c1out, double **c2out, double **ihcout, 
-           double **exponOut, double **sout1, double **sout2, double **synout) {
+           double **exponOut, double **sout1, double **sout2, double **synout,
+           double **cnout) {
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
@@ -120,6 +128,8 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     double IhcLowPass(double, double, double, int, double, int, double *, double *);
     double delay_cat(double);
     double delay_human(double);
+    void get_alpha_norm(double, double, double, double *, double *);
+    void filter_alpha(double *, int, double, double *, double *, double *);
 
     /* Declare variables for the BM/IHC stage to temporarily store outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, 
@@ -336,6 +346,23 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
         synslope[c] = Prest[c]/log(2)*synstrength[c];
     }
 
+    /* Declare variables used in the subcortical stage */
+    double cn_B_e[2], cn_A_e[3], cn_B_i[2], cn_A_i[3];
+    int cn_len_delay = (int) floor(cn_delay * 1/tdres);
+    double *cn_i[n_chan];
+    double *cn_e_tmp[n_chan];
+    double *cn_i_tmp[n_chan];
+    double cntmp = 0.0;
+    for (int i = 0; i < n_chan; i++) {
+        cn_i[i] = (double*) calloc(totalstim, sizeof(double));
+        cn_e_tmp[i] = (double*) calloc(totalstim, sizeof(double));
+        cn_i_tmp[i] = (double*) calloc(totalstim, sizeof(double));
+    }
+
+    /* Compute coefficients, variables, etc. for subcortical stage */
+    get_alpha_norm(cn_tau_e, 1/tdres, 1.0, cn_B_e, cn_A_e);
+    get_alpha_norm(cn_tau_i, 1/tdres, 1.0, cn_B_i, cn_A_i);
+
     /* Calculate middle-ear output */
     middle_ear(px, tdres, totalstim, species, meout);
 
@@ -418,12 +445,36 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
                 I2[c] += (sout2[c][j])*tdres/((n-j)*tdres + beta2);
             }
             synout[c][n] = sout1[c][n] + sout2[c][n];
+
+            /* TODO Need to transform everything into rates? */
+
+            /* Delay synapse output according to delay time for CN inhibition */
+            if ((n - cn_len_delay) < 0) {
+                cn_i[c][n] = 0.0;
+            } else {
+                cn_i[c][n] = synout[c][n - cn_len_delay]; 
+            }
+
+            /* Apply alpha function filters for CN stage, compute weighted difference */
+            filter_alpha(synout[c], n, 1/tdres, cn_B_e, cn_A_e, cn_e_tmp[c]);
+            filter_alpha(cn_i[c], n, 1/tdres, cn_B_i, cn_A_i, cn_i_tmp[c]);
+            cntmp = tdres * (cn_amp*cn_e_tmp[c][n] - (cn_amp*cn_inh)*cn_i_tmp[c][n]);
+
+            /* Determine output after CN half-wave rectification */
+            if (cntmp < 0.0) {
+                cnout[c][n] = 0.0;
+            } else {
+                cnout[c][n] = cntmp;
+            }
         }
     }
 
     /* Free dynamic memory */
     for (int i = 0; i < n_chan; i++) {
         free(tmpgain[i]);
+        free(cn_i[i]);
+        free(cn_e_tmp[i]);
+        free(cn_i_tmp[i]);
     }
     free(meout);
     for (int i = 0; i < n_chan; i++) {
