@@ -5,13 +5,15 @@
 
   The peripheral stage of this model is derived from the work of:
 
+  Zilany, M. S., & Bruce, I. C. (2006). Modeling auditory-nerve responses for high sound 
+  pressure levels in the normal and impaired auditory periphery. The Journal of the 
+  Acoustical Society of America, 120(3), 1446-1466.
+
   Zilany, M.S.A., Bruce, I.C., Nelson, P.C., and Carney, L.H. (2009). "A
   Phenomenological model of the synapse between the inner hair cell and auditory
   nerve : Long-term adaptation with power-law dynamics," Journal of the
   Acoustical Society of America 126(5): 2390-2412.
  
-  with the modifications described in:
-
   Ibrahim, R. A., and Bruce, I. C. (2010). "Effects of peripheral tuning
   on the auditory nerve's representation of speech envelope and temporal fine
   structure cues," in The Neurophysiological Bases of Auditory Perception, eds.
@@ -106,11 +108,30 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
            double *meout, double **controlout, double **c1out, double **c1vihcout, 
            double **c2out, double **c2vihcout, double **ihcout, double **synout, 
            double **exponOut, double **sout1, double **sout2) {
+    /* Declare functions used in model */
+	void middle_ear(double *, double, int, int, double *);
+    void Get_tauwb(int, double *, int, int, double *, double *);
+	void Get_taubm(int, double *, int, double *, double *, double *, double *);
+    double gain_groupdelay(double, double, double, double, int *);
+    double WbGammaTone(double, double, double, int, double, double, int, double *, 
+                       COMPLEX *, COMPLEX *);
+	double Boltzman(double, double, double, double, double);
+    double NLafterohc(double, double, double, double);
+    double OhcLowPass(double, double, double, int, double, int, double *, double *);
+	double C1ChirpFilt(double, double,double, int, double, double, double *, double *, 
+                       double **, double **);
+	double C2ChirpFilt(double, double,double, int, double, double, double *, double *, 
+                       double **, double **);
+    double NLogarithm(double, double, double, double);
+    double IhcLowPass(double, double, double, int, double, int, double *, double *);
+    double delay_cat(double);
+    double delay_human(double);
+
     /* Declare variables for the BM/IHC stage to temporarily store outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, 
            c2vihctmp, me_curr;
 
-    /* Declare parameters in the BM/IHC stage that vary by channel */
+    /* Declare parameters in the BM/IHC stage (all vary by channel) */
     double bmplace[n_chan], centerfreq[n_chan], Taumin[n_chan], Taumax[n_chan], 
            bmTaumin[n_chan], bmTaumax[n_chan], ratiobm[n_chan], bmTaubm[n_chan], 
            TauWBMax[n_chan], TauWBMin[n_chan], tauwb[n_chan], wbgain[n_chan],
@@ -213,7 +234,7 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     double alpha1, beta1, alpha2, beta2, PImax, Asp, TauR, TauST, Ar_Ast, PTS,
            k1, k2, tmp, PPI, CIlast, temp;
 
-    /* Declare variables used in the AN stage that vary by channel */
+    /* Declare other variables used in the AN stage (all vary by channel) */
     double cf_factor[n_chan], kslope[n_chan], Ass[n_chan], Aon[n_chan], AR[n_chan],
            AST[n_chan], Prest[n_chan], CG[n_chan], gamma1[n_chan], gamma2[n_chan],
            VI0[n_chan], VI1[n_chan], VI[n_chan], alpha[n_chan], beta[n_chan], 
@@ -221,39 +242,10 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
            CI[n_chan], CL[n_chan], VL[n_chan], vsat[n_chan], tmpst[n_chan], 
            synstrength[n_chan], synslope[n_chan], I1[n_chan], I2[n_chan];
 
-    /* Declare functions used in model */
-	void middle_ear(double *, double, int, int, double *);
-    void Get_tauwb(int, double *, int, int, double *, double *);
-	void Get_taubm(int, double *, int, double *, double *, double *, double *);
-    double gain_groupdelay(double, double, double, double, int *);
-    double WbGammaTone(double, double, double, int, double, double, int, double *, 
-                       COMPLEX *, COMPLEX *);
-	double Boltzman(double, double, double, double, double);
-    double NLafterohc(double, double, double, double);
-    double OhcLowPass(double, double, double, int, double, int, double *, double *);
-	double C1ChirpFilt(double, double,double, int, double, double, double *, double *, 
-                       double **, double **);
-	double C2ChirpFilt(double, double,double, int, double, double, double *, double *, 
-                       double **, double **);
-    double NLogarithm(double, double, double, double);
-    double IhcLowPass(double, double, double, int, double, int, double *, double *);
-    double delay_cat(double);
-    double delay_human(double);
-
-    /* Calculate middle-ear output */
-    middle_ear(px, tdres, totalstim, species, meout);
-
     /* Loop over channels to calculate parameters, coefficients, etc. for each channel */
     for (int c = 0; c < n_chan; c++) {
-        /* Calculate the center frequency for the control-path wideband filter as center
-        frequency corresponding to a 1.2-mm basal shift from requested CF.
-
-        This shift seeks to account for observations that suppression tuning curves have
-        slightly higher tip frequencies than excitatory tuning curves (pg. 1450, Zilany
-        and Bruce, 2006).
-
-        The details of this shift depends on the species in question (cat vs human).
-        */
+        /* Calculate the CF for the control-path wideband filter by shifting 1.2 mm basal
+           relative to nominal CF (pg 1450, Zilany and Bruce, 2006) */
         if (species == 1) {
             bmplace[c] = 11.9 * log10(0.80 + cf[c]/456.0); /* Calculate the location on basilar membrane from CF */
             centerfreq[c] = 456.0 * (pow(10, (bmplace[c]+1.2)/11.9) - 0.80); /* Shift the center freq */
@@ -346,6 +338,9 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
         else synstrength[c] = tmpst[c];
         synslope[c] = Prest[c]/log(2)*synstrength[c];
     }
+
+    /* Calculate middle-ear output */
+    middle_ear(px, tdres, totalstim, species, meout);
 
     /* Compute the model, looping over time steps */
     for (int n=0; n<totalstim; n++) {
@@ -557,30 +552,26 @@ void middle_ear(double *px, double tdres, int totalstim, int species, double *me
  * @param taumax Filter time constant at low sound levels
  * @param taumin Filter time constant at high sound levels
  */
-void Get_tauwb(int idx_chan, double *cf, int species, int order, double *taumax, double *taumin) {
+void Get_tauwb(int idx_chan, double *cf, int species, int order, double *taumax, 
+               double *taumin) {
     double Q10, bw, gain, ratio;
 
-    /* Calculate gain for cats (species == 1) or humans */
-    if (species == 1) {
-        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);  // Eq 6 - [[2006]] TODO resolve imperfect match
-    } 
-    else {
-        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
-    } 
+    /* Calculate gain */
+    gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);  // Eq 6, Zilany and Bruce (2006)
 
     /* Limit gain to 15-60 dB range */
     if (gain > 60.0) gain = 60.0;  
     if (gain < 15.0) gain = 15.0;
 
     /* Calculate ratio of TauMin/TauMax according to the gain and order */
-    ratio = pow(10, (-gain/(20.0*order)));  // pg 1451, top left - [[2006]]
+    ratio = pow(10, (-gain/(20.0*order)));  // pg 1451, top left, Zilany and Bruce (2006)
 
     /* Calculate Q10 values for cats (species == 1) or humans (Shera == 2, Glasberg == 3) */
     /* Values for cat come from ... */
     /* Values for Shera come from Shera et al. (PNAS 2002) */
     /* Values for Glasberg come from Glasberg and Moore (Hear. Res. 1999) */
     if (species == 1) {
-        Q10 = pow(10, 0.4708*log10(cf[idx_chan]/1e3) + 0.4664);  // pg 1451, top left - [[2006]]
+        Q10 = pow(10, 0.4708*log10(cf[idx_chan]/1e3) + 0.4664);  // pg 1451, top left, Zilany and Bruce (2006)
     }
     if (species==2) {
         Q10 = pow((cf[idx_chan]/1000), 0.3) * 12.7*0.505 + 0.2085;
@@ -591,8 +582,8 @@ void Get_tauwb(int idx_chan, double *cf, int species, int order, double *taumax,
 
     /* Calculate bandwidth, taumax, and taumin */
     bw = cf[idx_chan]/Q10;
-    taumax[idx_chan] = 2.0/(TWOPI*bw);  // pg 1451, top left - [[2006]]
-    taumin[idx_chan] = taumax[idx_chan]*ratio; // Eq 5 - [[2006]]
+    taumax[idx_chan] = 2.0/(TWOPI*bw);  // pg 1451, top left, Zilany and Bruce (2006)
+    taumin[idx_chan] = taumax[idx_chan]*ratio; // Eq 5, Zilany and Bruce (2006)
 }
 
 /**
@@ -607,20 +598,13 @@ void Get_tauwb(int idx_chan, double *cf, int species, int order, double *taumax,
  * @param bmTaumax ???
  * @param bmTaumin ???
  * @param ratio ???
- * 
- * TODO Add references to equations 
  */
 void Get_taubm(int idx_chan, double *cf, int species, double *taumax, double *bmTaumax,
                double *bmTaumin, double *ratio) {
     double gain,factor,bwfactor;
 
-    /* Calculate gain for cats (species == 1) or humans */
-    if (species == 1) {
-        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);
-    }
-    else {
-        gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0); 
-    }
+    /* Calculate gain */
+    gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);  // Eq 6, Zilany and Bruce (2006)
 
     /* Limit gain to 15-60 dB range */
     if (gain > 60.0) gain = 60.0;  
