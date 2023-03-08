@@ -67,18 +67,26 @@
  * a modified version of the periphery model of Zilany, Bruce, and Carney (2014) and a
  * new brainstem and midbrain model described in [[cite]].
  * 
+ * Inputs are passed in as pointers to arrays (px) or matrices (randNums). Outputs are 
+ * returned by writing in-place to matrices passed in at the end of the signature as 
+ * pointers to matrices. In all cases, matrices should have their first dimension equal in
+ * length to the number of simulated channels (n_chan) and their second dimension equal to
+ * the number of samples in the simulation (totalstim).
+ * 
  * @param px Vector containing sound-pressure waveform (Pa), size (totalstim, )
  * @param randNums Matrix of fractional Gaussian noise, size (n_chan, totalstim), see 
- *   2014 paper for details on how this noise should be synthesized. Each channel's noise
- *   should be independent.
+ *   2014 paper for details on how this noise should be synthesized (note: each channel's 
+ *   noise should be independent.
  * @param cf Vector containing characteristic frequencies for each channel (Hz), 
  *  size (n_chan, )
  * @param tdres Sample time resolution (s), i.e., reciprocal of the sampling rate (1/Hz)
  * @param totalstim Number of samples in the simulation
  * @param cohc Scalar value in [0, 1] controlling the maximum [[cohc]]
  * @param cihc Scalar value in [0, 1] controlling the maximum output of the inner hair cells
- * @param species Integer indicating what species to simulate (1==cat, 2=human[shera], 3==human[glasberg])
- * @param spont Float indicating what fiber type to simulate (100.0==HSR, 4.0==MSR, 0.1==LSR)
+ * @param species Integer indicating what species to simulate (1==cat, 2=human[shera], 
+ *   3==human[glasberg])
+ * @param spont Float indicating what fiber type to simulate (100.0==HSR, 4.0==MSR, 
+ *   0.1==LSR)
  * @param meout Vector to store output of middle-ear filter, size (totalstim, )
  * @param controlout Matrix to store output of control-path filter, size (n_chan, totalstim)
  * @param c1out Matrix to store output of signal-path C1 filter, size (n_chan, totalstim)
