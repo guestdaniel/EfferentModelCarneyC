@@ -1,5 +1,5 @@
  /*
-  This is v0.1.1 of the code for subcortical auditory model model of:
+  This is v0.1.2 of the code for subcortical auditory model model of:
 
   Guest, D. R., ..., and Carney, L. H. (202x). ...
 
@@ -89,25 +89,19 @@
  *   3==human[glasberg])
  * @param spont Float indicating what fiber type to simulate (100.0==HSR, 4.0==MSR, 
  *   0.1==LSR)
- * @param meout Vector to store output of middle-ear filter, size (totalstim, )
  * @param controlout Matrix to store output of control-path filter, size (n_chan, totalstim)
  * @param c1out Matrix to store output of signal-path C1 filter, size (n_chan, totalstim)
- * @param c1vihcout Matrix to store output of signal-path C1 filter after IHC transduction, 
- *   size (n_chan, totalstim)
  * @param c2out Matrix to store output of signal-path C2 filter, size (n_chan, totalstim)
- * @param c2vihcout Matrix to store output of signal-path C2 filter after IHC transduction, 
- *   size (n_chan, totalstim)
  * @param ihcout Matrix to store output of inner hair cell, size (n_chan, totalstim)
- * @param synout Matrix to store output of synapse, size (n_chan, totalstim)
  * @param exponOut Matrix to store output of exponential adaptation stage, size (n_chan, totalstim)
  * @param sout1 Matrix to store output of slow power-law adaptation stage, size (n_chan, totalstim)
  * @param sout2 Matrix to store output of fast power-law adaptation stage, size (n_chan, totalstim)
+ * @param synout Matrix to store output of synapse, size (n_chan, totalstim)
  */
 void model(double *px, double **randNums, double *cf, int n_chan, double tdres, 
            int totalstim, double cohc, double cihc, int species, double spont, 
-           double *meout, double **controlout, double **c1out, double **c1vihcout, 
-           double **c2out, double **c2vihcout, double **ihcout, double **synout, 
-           double **exponOut, double **sout1, double **sout2) {
+           double **controlout, double **c1out, double **c2out, double **ihcout, 
+           double **exponOut, double **sout1, double **sout2, double **synout) {
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
@@ -143,6 +137,9 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     for (int i = 0; i < n_chan; i++) {
         tmpgain[i] = (double*) calloc(totalstim, sizeof(double));
     }
+
+    /* Declare and allocate for meout */
+    double *meout = calloc(totalstim, sizeof(double));
 
     /* Declare and initialize state variables for WbGammaTone filter */
     double wbphase[n_chan];
@@ -393,10 +390,8 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
 
             /* Apply IHC model: NL input-output function and lowpass filtering */
             c1vihctmp  = NLogarithm(cihc*c1out[c][n], 0.1, 3.0, cf[c]);
-            c1vihcout[c][n] = c1vihctmp;  /* store sample output in vector */
             c2vihctmp = -NLogarithm(c2out[c][n]*fabs(c2out[c][n])*cf[c]/10*cf[c]/2e3, 0.2, 
                                     1.0, cf[c]); /* C2 transduction output */
-            c2vihcout[c][n] = c2vihctmp;  /* store sample output in vector */
             ihcout[c][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[c], 
                                       ihcl[c]);
 
@@ -430,6 +425,7 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     for (int i = 0; i < n_chan; i++) {
         free(tmpgain[i]);
     }
+    free(meout);
     for (int i = 0; i < n_chan; i++) {
         free(wbgtf[i]);
         free(wbgtfl[i]);
