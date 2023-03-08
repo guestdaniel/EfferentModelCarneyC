@@ -695,15 +695,17 @@ double delay_human(double cf) {
 }
 
 /**
- * Boltzman
+ * Boltzmann
  * 
- * Boltzman nonlinearity relating input ? to output ?
+ * Nonlinearity relating control-path filter input to output prior to lowpass filter
  * 
- * @param x input value (???)
+ * See Eq 7, Zilany and Bruce (2006) for more details about this function
+ * 
+ * @param x Input value
  * @param asym Parameter controlling ratio of (positive) max output to negative (min) output
- * @param s0 Parameter controlling ???
- * @param s1 Parameter controlling ???
- * @param x1 Parameter controlling ???
+ * @param s0 Parameter of Boltzmann function
+ * @param s1 Parameter of Boltzmann function
+ * @param x1 Parameter of Boltzmann function
  */
 double Boltzman(double x, double asym, double s0, double s1, double x1){
     double shift,x0,out1,out;
