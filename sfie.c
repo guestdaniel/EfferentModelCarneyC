@@ -49,3 +49,25 @@ void get_alpha_norm(double tau, double fs, double t, double *B, double *A) {
     A[1] = -2.0 * a * scale;
     A[2] = pow(a, 2.0) * scale;
 }
+
+/**
+ * filter_alpha
+ * 
+ * Applies "alpha function" filter to data at given sample index
+ * 
+ * @param x Vector of input data, size (totalstim, )
+ * @param n Current sample index
+ * @param fs Sampling rate (Hz)
+ * @param B Vector of feedforward filter coefficients, size (2, )
+ * @param A Vector of feedback filter coefficients, size (3, )
+ * @param y Vector of filter outputs, size (totalstim, )
+ */
+void filter_alpha(double *x, int n, double fs, double *B, double *A, double *y) {
+    if (n == 0) {
+        y[n] = (1/A[0]) * (B[0]*x[n]);
+    } else if (n == 1) {
+        y[n] = (1/A[0]) * (B[0]*x[n] + B[1]*x[n-1] - A[1]*y[n-1]);
+    } else {
+        y[n] = (1/A[0]) * (B[0]*x[n] + B[1]*x[n-1] - A[1]*y[n-1] - A[2]*y[n-2]);
+    }
+}
