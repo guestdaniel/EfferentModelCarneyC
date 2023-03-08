@@ -263,7 +263,7 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
         bmTaubm[c] = cohc*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
 
         /* Determine further parameters for the control-path wideband filter */
-        TauWBMax[c] = Taumin[c] + 0.2*(Taumax[c]-Taumin[c]); // Eq 4 - [[2006]]
+        TauWBMax[c] = Taumin[c] + 0.2*(Taumax[c]-Taumin[c]); // Eq 4, Zilany and Bruce (2006)
         TauWBMin[c] = TauWBMax[c]/Taumax[c]*Taumin[c];
         tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c]) * 
             (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
@@ -365,7 +365,7 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
             controlout[c][n] = NLafterohc(ohcout, bmTaumin[c], bmTaumax[c], 7.0);
 
             /* Determine time constant and shift of C1 filter poles based on output of OHCs */
-            tauc1 = cohc*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c]; 
+            tauc1 = cohc*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
             rsigma = 1/tauc1 - 1/bmTaumax[c];
             tauwb[c] = TauWBMax[c] + (tauc1-bmTaumax[c]) * 
                 (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
@@ -809,27 +809,27 @@ double IhcLowPass(double x, double tdres, double Fc, int n, double gain, int ord
 /**
  * NLafterohc
  * 
- * Nonlinearity applied to OHC output
+ * Nonlinearity to transform output of OHCLowPass to time-varying C1 time constant
  * 
- * @param x input value (???)
+ * See pg 1451, top right, Zilany and Bruce (2006) for more details.
+ * 
+ * @param x input value (output of OHC lowpass filter)
  * @param taumin ???
  * @param taumax ???
  * @param asym ???
  */
-double NLafterohc(double x,double taumin, double taumax, double asym) {    
+double NLafterohc(double x, double taumin, double taumax, double asym) {    
 	double R,dc,R1,s0,x1,out,minR;
 
     /* Calculate constants and parameters */
-	minR = 0.05;
+	minR = 0.05;  // ratio of asymptotic lower bound of time constant to taumax 
     R  = taumin/taumax;
-    
 	if (R < minR) minR = 0.5*R;
     else minR = minR;
     
-    dc = (asym-1)/(asym+1.0)/2.0-minR;
+    dc = (asym-1)/(asym+1.0)/2.0-minR;  // estimate of DC component of control-path output at high levels
     R1 = R-minR;
 
-    /* TODO: Update comment /// This is for new nonlinearity */
     s0 = -dc/log(R1/(1-minR));
     x1  = fabs(x);
 
