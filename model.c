@@ -102,6 +102,8 @@
  * @param sout1 Matrix to store output of slow power-law adaptation stage, size (n_chan, totalstim)
  * @param sout2 Matrix to store output of fast power-law adaptation stage, size (n_chan, totalstim)
  * @param synout Matrix to store output of synapse, size (n_chan, totalstim)
+ * @param anrateout Matrix to store output instantaneous firing rate of auditory nerve, 
+ *   size (n_chan, totalstim)
  * @param cnout Matrix to store output of cochlear nucleus, size (n_chan, totalstim)
  */
 void model(double *px, double **randNums, double *cf, int n_chan, double tdres, 
@@ -109,7 +111,7 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
            double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
            double **controlout, double **c1out, double **c2out, double **ihcout, 
            double **exponOut, double **sout1, double **sout2, double **synout,
-           double **cnout) {
+           double **anrateout, double **cnout) {
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
@@ -446,17 +448,18 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
             }
             synout[c][n] = sout1[c][n] + sout2[c][n];
 
-            /* TODO Need to transform everything into rates? */
+            /* Compute instantaneous rate from synapse output */
+            anrateout[c][n] = synout[c][n] / (1.0 + pow(0.75e-3, synout[c][n]));
 
             /* Delay synapse output according to delay time for CN inhibition */
             if ((n - cn_len_delay) < 0) {
                 cn_i[c][n] = 0.0;
             } else {
-                cn_i[c][n] = synout[c][n - cn_len_delay]; 
+                cn_i[c][n] = anrateout[c][n - cn_len_delay]; 
             }
 
             /* Apply alpha function filters for CN stage, compute weighted difference */
-            filter_alpha(synout[c], n, 1/tdres, cn_B_e, cn_A_e, cn_e_tmp[c]);
+            filter_alpha(anrateout[c], n, 1/tdres, cn_B_e, cn_A_e, cn_e_tmp[c]);
             filter_alpha(cn_i[c], n, 1/tdres, cn_B_i, cn_A_i, cn_i_tmp[c]);
             cntmp = tdres * (cn_amp*cn_e_tmp[c][n] - (cn_amp*cn_inh)*cn_i_tmp[c][n]);
 
