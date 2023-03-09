@@ -97,11 +97,14 @@
  * @param sout1 Matrix to store output of slow power-law adaptation stage, size (n_chan, totalstim)
  * @param sout2 Matrix to store output of fast power-law adaptation stage, size (n_chan, totalstim)
  * @param synout Matrix to store output of synapse, size (n_chan, totalstim)
+ * @param anrateout Matrix to store output instantaneous firing rate of auditory nerve, 
+ *   size (n_chan, totalstim)
  */
 void model(double *px, double **randNums, double *cf, int n_chan, double tdres, 
            int totalstim, double cohc, double cihc, int species, double spont, 
            double **controlout, double **c1out, double **c2out, double **ihcout, 
-           double **exponOut, double **sout1, double **sout2, double **synout) {
+           double **exponOut, double **sout1, double **sout2, double **synout,
+           double **anrateout) {
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
@@ -418,6 +421,11 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
                 I2[c] += (sout2[c][j])*tdres/((n-j)*tdres + beta2);
             }
             synout[c][n] = sout1[c][n] + sout2[c][n];
+
+            /* Compute instantaneous rate from synapse output */
+            anrateout[c][n] = synout[c][n] / (1.0 + pow(0.75e-3, synout[c][n]));
+
+            /* TODO LEFT OFF HERE */
         }
     }
 
