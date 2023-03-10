@@ -139,6 +139,8 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     double delay_human(double);
     void get_alpha_norm(double, double, double, double *, double *);
     void filter_alpha(double *, int, double, double *, double *, double *);
+    double hw_rectify(double);
+    void delay_signal(double *, int, int, double*);
 
     /* Declare variables for the BM/IHC stage to temporarily store outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, 
@@ -472,44 +474,27 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
             /* Compute instantaneous rate from synapse output */
             anrateout[c][n] = synout[c][n] / (1.0 + pow(0.75e-3, synout[c][n]));
 
-            /* Delay synapse output according to delay time for CN inhibition */
-            if ((n - cn_len_delay) < 0) {
-                cn_i[c][n] = 0.0;
-            } else {
-                cn_i[c][n] = anrateout[c][n - cn_len_delay]; 
-            }
+            /* Delay rate output for SFIE cochlear nucleus inhibitory pathway */
+            delay_signal(anrateout[c], n, cn_len_delay, cn_i[c]);
 
-            /* Apply alpha function filters for CN stage, compute weighted difference */
+            /* Apply SFIE filters for cochlear nucleus stage */
             filter_alpha(anrateout[c], n, 1/tdres, cn_B_e, cn_A_e, cn_e_tmp[c]);
             filter_alpha(cn_i[c], n, 1/tdres, cn_B_i, cn_A_i, cn_i_tmp[c]);
+
+            /* Compute output signal and rectify */
             cntmp = tdres * (cn_amp*cn_e_tmp[c][n] - (cn_amp*cn_inh)*cn_i_tmp[c][n]);
+            cnout[c][n] = hw_rectify(cntmp);
 
-            /* Determine output after CN half-wave rectification */
-            if (cntmp < 0.0) {
-                cnout[c][n] = 0.0;
-            } else {
-                cnout[c][n] = cntmp;
-            }
+            /* Delay CN output for SFIE inferior colliculus inhibitory pathway */
+            delay_signal(cnout[c], n, ic_len_delay, ic_i[c]);
 
-            /* Delay synapse output according to delay time for IC inhibition */
-            /* TODO think about whether this is correct for IC stage delay? */
-            if ((n - ic_len_delay) < 0) {
-                ic_i[c][n] = 0.0;
-            } else {
-                ic_i[c][n] = cnout[c][n - ic_len_delay]; 
-            }
-
-            /* Apply alpha function filters for IC stage, compute weighted difference */
+            /* Apply SFIE filters for inferior colliculus stage */
             filter_alpha(cnout[c], n, 1/tdres, ic_B_e, ic_A_e, ic_e_tmp[c]);
             filter_alpha(ic_i[c], n, 1/tdres, ic_B_i, ic_A_i, ic_i_tmp[c]);
-            ictmp = tdres * (ic_amp*ic_e_tmp[c][n] - (ic_amp*ic_inh)*ic_i_tmp[c][n]);
 
-            /* Determine output after CN half-wave rectification */
-            if (ictmp < 0.0) {
-                icout[c][n] = 0.0;
-            } else {
-                icout[c][n] = ictmp;
-            }
+            /* Compute output signal and rectify */
+            ictmp = tdres * (ic_amp*ic_e_tmp[c][n] - (ic_amp*ic_inh)*ic_i_tmp[c][n]);
+            icout[c][n] = hw_rectify(ictmp);
         }
     }
 
@@ -547,6 +532,39 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     free(C1output);
     free(C2input);
     free(C2output);
+}
+
+/**
+ * hw_rectify
+ * 
+ * Applies half-wave rectification to a single number
+ * 
+ * @param x Value to rectify
+ */
+double hw_rectify(double x) {
+    if (x < 0.0) x = 0.0;
+    return x;
+}
+
+/**
+ * delay_signal
+ * 
+ * Simple signal delay between two vectors for a constant number of samples
+ * 
+ * @param input Vector containing input signal
+ * @param n Current sample index
+ * @param len_delay Length of delay in samples
+ * @param output Vector containing output signal
+ * 
+ * @note Standard warnings apply --- don't pass indices that exceed the lengths of the 
+ *   arrays! There's no manual bounds checks!!!
+ */
+void delay_signal(double *input, int n, int len_delay, double *output) {
+    if ((n - len_delay) < 0) {
+        output[n] = 0.0;
+    } else {
+        output[n] = input[n - len_delay]; 
+    }
 }
 
 /**
