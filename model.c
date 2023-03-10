@@ -94,6 +94,11 @@
  * @param cn_delay Inhibitory path delay time (s) for SFIE cochlear nucleus stage
  * @param cn_amp Overall amplitude scalar for SFIE cochlear nucleus stage
  * @param cn_inh Inhibition strength scalar for SFIE cochlear nucleus stage
+ * @param ic_tau_e Excitatory path time constant (s) for SFIE inferior colliculus stage
+ * @param ic_tau_i Inhibitory path time constant (s) for SFIE inferior colliculus stage
+ * @param ic_delay Inhibitory path delay time (s) for SFIE inferior colliculus stage
+ * @param ic_amp Overall amplitude scalar for SFIE inferior colliculus stage
+ * @param ic_inh Inhibition strength scalar for SFIE inferior colliculus stage
  * @param controlout Matrix to store output of control-path filter, size (n_chan, totalstim)
  * @param c1out Matrix to store output of signal-path C1 filter, size (n_chan, totalstim)
  * @param c2out Matrix to store output of signal-path C2 filter, size (n_chan, totalstim)
@@ -105,13 +110,15 @@
  * @param anrateout Matrix to store output instantaneous firing rate of auditory nerve, 
  *   size (n_chan, totalstim)
  * @param cnout Matrix to store output of cochlear nucleus, size (n_chan, totalstim)
+ * @param icout Matrix to store output of inferior colliculus, size (n_chan, totalstim)
  */
 void model(double *px, double **randNums, double *cf, int n_chan, double tdres, 
            int totalstim, double cohc, double cihc, int species, double spont, 
            double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
+           double ic_tau_e, double ic_tau_i, double ic_delay, double ic_amp, double ic_inh,
            double **controlout, double **c1out, double **c2out, double **ihcout, 
            double **exponOut, double **sout1, double **sout2, double **synout,
-           double **anrateout, double **cnout) {
+           double **anrateout, double **cnout, double **icout) {
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
@@ -361,9 +368,23 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
         cn_i_tmp[i] = (double*) calloc(totalstim, sizeof(double));
     }
 
+    double ic_B_e[2], ic_A_e[3], ic_B_i[2], ic_A_i[3];
+    int ic_len_delay = (int) floor(ic_delay * 1/tdres);
+    double *ic_i[n_chan];
+    double *ic_e_tmp[n_chan];
+    double *ic_i_tmp[n_chan];
+    double ictmp = 0.0;
+    for (int i = 0; i < n_chan; i++) {
+        ic_i[i] = (double*) calloc(totalstim, sizeof(double));
+        ic_e_tmp[i] = (double*) calloc(totalstim, sizeof(double));
+        ic_i_tmp[i] = (double*) calloc(totalstim, sizeof(double));
+    }
+
     /* Compute coefficients, variables, etc. for subcortical stage */
     get_alpha_norm(cn_tau_e, 1/tdres, 1.0, cn_B_e, cn_A_e);
     get_alpha_norm(cn_tau_i, 1/tdres, 1.0, cn_B_i, cn_A_i);
+    get_alpha_norm(ic_tau_e, 1/tdres, 1.0, ic_B_e, ic_A_e);
+    get_alpha_norm(ic_tau_i, 1/tdres, 1.0, ic_B_i, ic_A_i);
 
     /* Calculate middle-ear output */
     middle_ear(px, tdres, totalstim, species, meout);
@@ -469,6 +490,26 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
             } else {
                 cnout[c][n] = cntmp;
             }
+
+            /* Delay synapse output according to delay time for IC inhibition */
+            /* TODO think about whether this is correct for IC stage delay? */
+            if ((n - ic_len_delay) < 0) {
+                ic_i[c][n] = 0.0;
+            } else {
+                ic_i[c][n] = cnout[c][n - ic_len_delay]; 
+            }
+
+            /* Apply alpha function filters for IC stage, compute weighted difference */
+            filter_alpha(cnout[c], n, 1/tdres, ic_B_e, ic_A_e, ic_e_tmp[c]);
+            filter_alpha(ic_i[c], n, 1/tdres, ic_B_i, ic_A_i, ic_i_tmp[c]);
+            ictmp = tdres * (ic_amp*ic_e_tmp[c][n] - (ic_amp*ic_inh)*ic_i_tmp[c][n]);
+
+            /* Determine output after CN half-wave rectification */
+            if (ictmp < 0.0) {
+                icout[c][n] = 0.0;
+            } else {
+                icout[c][n] = ictmp;
+            }
         }
     }
 
@@ -478,6 +519,8 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
         free(cn_i[i]);
         free(cn_e_tmp[i]);
         free(cn_i_tmp[i]);
+        // free(ic_e_tmp[i]);
+        // free(ic_i_tmp[i]);
     }
     free(meout);
     for (int i = 0; i < n_chan; i++) {
@@ -607,7 +650,7 @@ void Get_tauwb(int idx_chan, double *cf, int species, int order, double *taumax,
     double Q10, bw, gain, ratio;
 
     /* Calculate gain */
-    gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);  // Eq 6, Zilany and Bruce (2006)
+    gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);  // Eq 6, Zilany and Bruce (2007)
 
     /* Limit gain to 15-60 dB range */
     if (gain > 60.0) gain = 60.0;  
@@ -654,7 +697,7 @@ void Get_taubm(int idx_chan, double *cf, int species, double *taumax, double *bm
     double gain,factor,bwfactor;
 
     /* Calculate gain */
-    gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);  // Eq 6, Zilany and Bruce (2006)
+    gain = 52.0/2.0 * (tanh(2.2*log10(cf[idx_chan]/0.6e3)+0.15) + 1.0);  // Eq 6, Zilany and Bruce (2007)
 
     /* Limit gain to 15-60 dB range */
     if (gain > 60.0) gain = 60.0;  
