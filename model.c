@@ -76,9 +76,12 @@
  * the number of samples in the simulation (totalstim).
  * 
  * @param px Vector containing sound-pressure waveform (Pa), size (totalstim, )
- * @param randNums Matrix of fractional Gaussian noise, size (n_chan, totalstim), see 
- *   2014 paper for details on how this noise should be synthesized (note: each channel's 
- *   noise should be independent.
+ * @param randNums_hsr Matrix of fractional Gaussian noise for the high-spontaneous-rate
+ *   signal path, of size (n_chan, totalstim), see 2014 paper for details on how this noise 
+ *   should be synthesized 
+ * @param randNums_lsr Matrix of fractional Gaussian noise for the low-spontaneous-rate
+ *   signal path, of size (n_chan, totalstim), see 2014 paper for details on how this noise 
+ *   should be synthesized 
  * @param cf Vector containing characteristic frequencies for each channel (Hz), 
  *  size (n_chan, )
  * @param tdres Sample time resolution (s), i.e., reciprocal of the sampling rate (1/Hz)
@@ -114,8 +117,8 @@
  * @param anrateout_hsr Matrix to store output instantaneous firing rate of 
  *   high-spontaneous-rate auditory-nerve fiber size (n_chan, totalstim)
  */
-void model(double *px, double **randNums, double *cf, int n_chan, double tdres, 
-           int totalstim, double cohc, double cihc, int species, double spont, 
+void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf, int n_chan, 
+           double tdres, int totalstim, double cohc, double cihc, int species, double spont, 
            double **controlout, double **c1out, double **c2out, double **ihcout, 
            double **expout_hsr, double **sout1_hsr, double **sout2_hsr, double **synout_hsr,
            double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
@@ -146,6 +149,7 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
                                    double *);
 
     /* Declare variables that allow us to easily reference LSR/HSR paths */
+    double** randNums[2] = {randNums_hsr, randNums_lsr};
     double** expout[2] = {expout_hsr, expout_lsr};
     double** sout1[2] = {sout1_hsr, sout1_lsr};
     double** sout2[2] = {sout2_hsr, sout2_lsr};
@@ -392,7 +396,7 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
                                         expout[t][c]);
 
                 /* Apply power-law adaptation */
-                sout1[t][c][n]  = __max(0, expout[t][c][n] + randNums[c][n] - alpha1*I1[t][c]);
+                sout1[t][c][n]  = __max(0, expout[t][c][n] + randNums[t][c][n] - alpha1*I1[t][c]);
                 sout2[t][c][n] = __max(0, expout[t][c][n] - alpha2*I2[t][c]);
                 I1[t][c] = 0.0; I2[t][c] = 0.0;
                 for (int j = 0; j < n+1; ++j) {
