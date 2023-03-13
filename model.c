@@ -144,9 +144,11 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     double initialize_ws1988_adaptation(double, double, double *, double *, double *,
                                         double *, double *, double *, double *, double *,
                                         double *);
-    double apply_ws1988_adaptation(double *x, int, double, double, double, double, double,
+    double apply_ws1988_adaptation(double *, int, double, double, double, double, double,
                                    double, double, double, double *, double *, double *,
                                    double *);
+    double apply_powerlaw_adaptation(double *, double *, double *, double *, int, double,
+                                     double, double, double, double, double *, double *);
 
     /* Declare variables that allow us to easily reference LSR/HSR paths */
     double** randNums[2] = {randNums_hsr, randNums_lsr};
@@ -396,13 +398,9 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
                                         expout[t][c]);
 
                 /* Apply power-law adaptation */
-                sout1[t][c][n]  = __max(0, expout[t][c][n] + randNums[t][c][n] - alpha1*I1[t][c]);
-                sout2[t][c][n] = __max(0, expout[t][c][n] - alpha2*I2[t][c]);
-                I1[t][c] = 0.0; I2[t][c] = 0.0;
-                for (int j = 0; j < n+1; ++j) {
-                    I1[t][c] += (sout1[t][c][j])*tdres/((n-j)*tdres + beta1);
-                    I2[t][c] += (sout2[t][c][j])*tdres/((n-j)*tdres + beta2);
-                }
+                apply_powerlaw_adaptation(expout[t][c], randNums[t][c], &I1[t][c], 
+                                          &I2[t][c], n, alpha1, beta1, alpha2, beta2, tdres,
+                                          sout1[t][c], sout2[t][c]);
                 synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
 
                 /* Compute instantaneous rate from synapse output */

@@ -190,3 +190,33 @@ void apply_ws1988_adaptation(double *x, int n, double synstrength, double synslo
     (*CL_state) = CL;
     y[n] = CI*PPI;
 }
+
+/**
+ * apply_powerlaw_adaptation
+ * 
+ * Applies slow and fast powerlaw adaptation to signal
+ * 
+ * @param x Input data 
+ * @param randNums Input fractional Gaussian noise
+ * @param I1 Pointer to state variable for path #1
+ * @param I2 Pointer to state variable for path #1
+ * @param n Current sample index
+ * @param alpha1
+ * @param beta1
+ * @param alpha2
+ * @param beta2
+ * @param tdres
+ * @param sout1 Output vector for path #1
+ * @param sout2 Output vector for path #2
+ */
+void apply_powerlaw_adaptation(double *x, double *randNums, double *I1, double *I2, int n,
+                               double alpha1, double beta1, double alpha2, double beta2, 
+                               double tdres, double *sout1, double *sout2) {
+    sout1[n]  = __max(0, x[n] + randNums[n] - alpha1*(*I1));
+    sout2[n] = __max(0, x[n] - alpha2*(*I2));
+    (*I1) = 0.0; (*I2) = 0.0;
+    for (int j = 0; j < n+1; ++j) {
+        (*I1) += (sout1[j])*tdres/((n-j)*tdres + beta1);
+        (*I2) += (sout2[j])*tdres/((n-j)*tdres + beta2);
+    }
+}
