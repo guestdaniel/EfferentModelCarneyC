@@ -93,18 +93,33 @@
  * @param c1out Matrix to store output of signal-path C1 filter, size (n_chan, totalstim)
  * @param c2out Matrix to store output of signal-path C2 filter, size (n_chan, totalstim)
  * @param ihcout Matrix to store output of inner hair cell, size (n_chan, totalstim)
- * @param exponOut Matrix to store output of exponential adaptation stage, size (n_chan, totalstim)
- * @param sout1 Matrix to store output of slow power-law adaptation stage, size (n_chan, totalstim)
- * @param sout2 Matrix to store output of fast power-law adaptation stage, size (n_chan, totalstim)
- * @param synout Matrix to store output of synapse, size (n_chan, totalstim)
- * @param anrateout Matrix to store output instantaneous firing rate of auditory nerve, 
- *   size (n_chan, totalstim)
+ * @param expout_hsr Matrix to store output of exponential adaptation stage for 
+ *   high-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param sout1_hsr Matrix to store output of slow power-law adaptation stage for 
+ *   high-spontaneousrate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param sout2_hsr Matrix to store output of fast power-law adaptation stage for
+ *   high-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param synout_hsr Matrix to store output of synapse for high-spontaneous-rate 
+ *   auditory-nerve fiber, size (n_chan, totalstim)
+ * @param expout_lsr Matrix to store output of exponential adaptation stage for 
+ *   low-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param sout1_lsr Matrix to store output of slow power-law adaptation stage for 
+ *   low-spontaneousrate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param sout2_lsr Matrix to store output of fast power-law adaptation stage for
+ *   low-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param synout_lsr Matrix to store output of synapse for low-spontaneous-rate 
+ *   auditory-nerve fiber, size (n_chan, totalstim)
+ * @param anrateout_lsr Matrix to store output instantaneous firing rate of 
+ *   low-spontaneous-rate auditory-nerve fiber size (n_chan, totalstim)
+ * @param anrateout_hsr Matrix to store output instantaneous firing rate of 
+ *   high-spontaneous-rate auditory-nerve fiber size (n_chan, totalstim)
  */
 void model(double *px, double **randNums, double *cf, int n_chan, double tdres, 
            int totalstim, double cohc, double cihc, int species, double spont, 
            double **controlout, double **c1out, double **c2out, double **ihcout, 
-           double **exponOut, double **sout1, double **sout2, double **synout,
-           double **anrateout) {
+           double **expout_hsr, double **sout1_hsr, double **sout2_hsr, double **synout_hsr,
+           double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
+           double **anrateout_hsr, double **anrateout_lsr) {
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
@@ -355,22 +370,20 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
             /* Apply double-exponential adaptation */
             apply_ws1988_adaptation(ihcout[c], n, synstrength[c], synslope[c], VI[c], PG[c], 
                                     VL[c], PL[c], CG[c], tdres, &CI[c], &CL[c], &CIlast[c],
-                                    exponOut[c]);
+                                    expout_hsr[c]);
 
             /* Apply power-law adaptation */
-            sout1[c][n]  = __max(0, exponOut[c][n] + randNums[c][n] - alpha1*I1[c]);
-            sout2[c][n] = __max(0, exponOut[c][n] - alpha2*I2[c]);
+            sout1_hsr[c][n]  = __max(0, expout_hsr[c][n] + randNums[c][n] - alpha1*I1[c]);
+            sout2_hsr[c][n] = __max(0, expout_hsr[c][n] - alpha2*I2[c]);
             I1[c] = 0.0; I2[c] = 0.0;
             for (int j = 0; j < n+1; ++j) {
-                I1[c] += (sout1[c][j])*tdres/((n-j)*tdres + beta1);
-                I2[c] += (sout2[c][j])*tdres/((n-j)*tdres + beta2);
+                I1[c] += (sout1_hsr[c][j])*tdres/((n-j)*tdres + beta1);
+                I2[c] += (sout2_hsr[c][j])*tdres/((n-j)*tdres + beta2);
             }
-            synout[c][n] = sout1[c][n] + sout2[c][n];
+            synout_hsr[c][n] = sout1_hsr[c][n] + sout2_hsr[c][n];
 
             /* Compute instantaneous rate from synapse output */
-            anrateout[c][n] = synout[c][n] / (1.0 + pow(0.75e-3, synout[c][n]));
-
-            /* TODO LEFT OFF HERE */
+            anrateout_hsr[c][n] = synout_hsr[c][n] / (1.0 + pow(0.75e-3, synout_hsr[c][n]));
         }
     }
 
