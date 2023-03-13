@@ -123,6 +123,12 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     double IhcLowPass(double, double, double, int, double, int, double *, double *);
     double delay_cat(double);
     double delay_human(double);
+    double initialize_ws1988_adaptation(double, double, double *, double *, double *,
+                                        double *, double *, double *, double *, double *,
+                                        double *);
+    double apply_ws1988_adaptation(double *x, int, double, double, double, double, double,
+                                   double, double, double, double *, double *, double *,
+                                   double *);
 
     /* Declare variables for the BM/IHC stage to temporarily store outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, 
@@ -231,16 +237,12 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     }
 
     /* Declare variables used in the AN stage that are fixed across channels or reused */
-    double alpha1, beta1, alpha2, beta2, PImax, Asp, TauR, TauST, Ar_Ast, PTS,
-           k1, k2, tmp, PPI, CIlast, temp;
+    double alpha1, beta1, alpha2, beta2;
 
     /* Declare other variables used in the AN stage (all vary by channel) */
-    double cf_factor[n_chan], kslope[n_chan], Ass[n_chan], Aon[n_chan], AR[n_chan],
-           AST[n_chan], Prest[n_chan], CG[n_chan], gamma1[n_chan], gamma2[n_chan],
-           VI0[n_chan], VI1[n_chan], VI[n_chan], alpha[n_chan], beta[n_chan], 
-           theta1[n_chan], theta2[n_chan], theta3[n_chan], PL[n_chan], PG[n_chan],
-           CI[n_chan], CL[n_chan], VL[n_chan], vsat[n_chan], tmpst[n_chan], 
-           synstrength[n_chan], synslope[n_chan], I1[n_chan], I2[n_chan];
+    double synstrength[n_chan], synslope[n_chan], VI[n_chan], PG[n_chan], CG[n_chan],
+           VL[n_chan], PL[n_chan], I1[n_chan], I2[n_chan];
+    double CI[n_chan], CL[n_chan], CIlast[n_chan];
 
     /* Loop over channels to calculate parameters, coefficients, etc. for each channel */
     for (int c = 0; c < n_chan; c++) {
@@ -287,56 +289,8 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
         }
 
         /* Set parameters for double-exponential adaptation (based on fiber type / spont) */
-        if (spont == 100) {
-            cf_factor[c] = __min(800, pow(10, 0.29*cf[c]/1e3 + 0.7));
-        } else if (spont == 4) {
-            cf_factor[c] = __min(50, 2.5e-4*cf[c]*4 + 0.2);
-        } else {
-            cf_factor[c] = __min(1.0, 2.5e-4*cf[c]*0.1 + 0.15);
-        }
-        
-        PImax  = 0.6;                /* PI2 : Maximum of the PI(PI at steady state) */
-        Asp = spont*3.0;             /* Spontaneous Firing Rate */
-        TauR   = 2e-3;               /* Rapid Time Constant eq.10 */
-        TauST  = 60e-3;              /* Short Time Constant eq.10 */
-        Ar_Ast = 6;                  /* Ratio of Ar/Ast */
-        PTS    = 3;                  /* Peak to Steady State Ratio, characteristic of PSTH */
-        k1     = -1/TauR;            /* eq.8 & eq.10 */
-        k2     = -1/TauST;           /* eq.8 & eq.10 */
-
-        kslope[c] = (1+50.0)/(5+50.0)*cf_factor[c]*20.0*PImax;
-        Ass[c] = 800*(1+cf[c]/100e3);  /* Steady State Firing Rate eq.10 */
-
-        Aon[c] = PTS*Ass[c];                            /* Onset rate = Ass+Ar+Ast eq.10 */
-        AR[c] = (Aon[c]-Ass[c])*Ar_Ast/(1+Ar_Ast);      /* Rapid component magnitude: eq.10 */
-        AST[c] = Aon[c]-Ass[c]-AR[c];                   /* Short time component: eq.10 */
-        Prest[c] = PImax/Aon[c]*Asp;                    /* eq.A15 */
-        CG[c] = (Asp*(Aon[c]-Asp))/(Aon[c]*Prest[c]*(1-Asp/Ass[c]));    /* eq.A16 */
-        gamma1[c] = CG[c]/Asp;                          /* eq.A19 */
-        gamma2[c] = CG[c]/Ass[c];                       /* eq.A20 */
-        /* below: eq.A21 & eq.A22 */
-        VI0[c]    = (1-PImax/Prest[c]) / 
-            (gamma1[c]*(AR[c]*(k1-k2)/CG[c]/PImax+k2/Prest[c]/gamma1[c]-k2/PImax/gamma2[c]));
-        VI1[c]    = (1-PImax/Prest[c]) / 
-            (gamma1[c]*(AST[c]*(k2-k1)/CG[c]/PImax+k1/Prest[c]/gamma1[c]-k1/PImax/gamma2[c]));
-        VI[c]  = (VI0[c]+VI1[c])/2;
-        alpha[c]  = gamma2[c]/k1/k2;                    /* eq.A23,eq.A24 or eq.7 */
-        beta[c]   = -(k1+k2)*alpha[c];                  /* eq.A23 or eq.7 */
-        theta1[c] = alpha[c]*PImax/VI[c];
-        theta2[c] = VI[c]/PImax;
-        theta3[c] = gamma2[c]-1/PImax;
-
-        PL[c]  = ((beta[c]-theta2[c]*theta3[c])/theta1[c]-1)*PImax;  /* eq.4' */
-        PG[c]  = 1/(theta3[c]-1/PL[c]);                 /* eq.5' */
-        VL[c]  = theta1[c]*PL[c]*PG[c];                 /* eq.3' */
-        CI[c]  = Asp/Prest[c];                          /* CI at rest, from eq.A3,eq.A12 */
-        CL[c]  = CI[c]*(Prest[c]+PL[c])/PL[c];          /* CL at rest, from eq.1 */
-
-        if (kslope[c] >= 0) vsat[c] = kslope[c]+Prest[c];
-        tmpst[c] = log(2)*vsat[c]/Prest[c];
-        if(tmpst[c]<400) synstrength[c] = log(exp(tmpst[c])-1);
-        else synstrength[c] = tmpst[c];
-        synslope[c] = Prest[c]/log(2)*synstrength[c];
+        initialize_ws1988_adaptation(cf[c], spont, &synstrength[c], &synslope[c], &VI[c], 
+                                     &PG[c], &VL[c], &PL[c], &CG[c], &CI[c], &CL[c]);
     }
 
     /* Calculate middle-ear output */
@@ -399,18 +353,9 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
                                       ihcl[c]);
 
             /* Apply double-exponential adaptation */
-            tmp = synstrength[c]*(ihcout[c][n]);
-            if(tmp<400) tmp = log(1 + exp(tmp));
-            PPI = synslope[c]/synstrength[c]*tmp;
-            CIlast = CI[c];
-            CI[c] = CI[c] + (tdres/VI[c])*(-PPI*CI[c] + PL[c]*(CL[c]-CI[c]));
-            CL[c] = CL[c] + (tdres/VL[c])*(-PL[c]*(CL[c]-CIlast) + PG[c]*(CG[c]-CL[c]));
-            if (CI[c] < 0) {
-                temp = 1/PG[c] + 1/PL[c] + 1/PPI;
-                CI[c] = CG[c]/(PPI*temp);
-                CL[c] = CI[c]*(PPI+PL[c])/PL[c];
-            }
-            exponOut[c][n] = CI[c]*PPI;
+            apply_ws1988_adaptation(ihcout[c], n, synstrength[c], synslope[c], VI[c], PG[c], 
+                                    VL[c], PL[c], CG[c], tdres, &CI[c], &CL[c], &CIlast[c],
+                                    exponOut[c]);
 
             /* Apply power-law adaptation */
             sout1[c][n]  = __max(0, exponOut[c][n] + randNums[c][n] - alpha1*I1[c]);
