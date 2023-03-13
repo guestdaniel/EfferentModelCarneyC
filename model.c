@@ -254,10 +254,14 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     /* Declare variables used in the AN stage that are fixed across channels or reused */
     double alpha1, beta1, alpha2, beta2;
 
-    /* Declare other variables used in the AN stage (all vary by channel) */
-    double synstrength[n_chan], synslope[n_chan], VI[n_chan], PG[n_chan], CG[n_chan],
-           VL[n_chan], PL[n_chan], I1[n_chan], I2[n_chan];
-    double CI[n_chan], CL[n_chan], CIlast[n_chan];
+    /* Declare other variables used in the AN stage (all vary by channel/fiber type) */
+    int n_fiber_type = 2;  // HSR==0, LSR==1
+    double sponts[2] = {100.0, 0.1}; 
+    double synstrength[n_fiber_type][n_chan], synslope[n_fiber_type][n_chan], 
+           VI[n_fiber_type][n_chan], PG[n_fiber_type][n_chan], CG[n_fiber_type][n_chan],
+           VL[n_fiber_type][n_chan], PL[n_fiber_type][n_chan], I1[n_fiber_type][n_chan], 
+           I2[n_fiber_type][n_chan], CI[n_fiber_type][n_chan], CL[n_fiber_type][n_chan], 
+           CIlast[n_fiber_type][n_chan];
 
     /* Loop over channels to calculate parameters, coefficients, etc. for each channel */
     for (int c = 0; c < n_chan; c++) {
@@ -297,15 +301,20 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
         alpha1 = 2.5e-6*100e3; 
         beta1  = 5e-4; 
         alpha2 = 1e-2*100e3; 
-        beta2  = 1e-1; 
-        for (int i = 0; i < n_chan; i++) {
-            I1[i] = 0.0;
-            I2[i] = 0.0;
+        beta2  = 1e-1;
+        for (int t = 0; t < n_fiber_type; t++) {
+            for (int i = 0; i < n_chan; i++) {
+                I1[t][i] = 0.0;
+                I2[t][i] = 0.0;
+            }
         }
 
         /* Set parameters for double-exponential adaptation (based on fiber type / spont) */
-        initialize_ws1988_adaptation(cf[c], spont, &synstrength[c], &synslope[c], &VI[c], 
-                                     &PG[c], &VL[c], &PL[c], &CG[c], &CI[c], &CL[c]);
+        for (int t = 0; t < n_fiber_type; t++) {
+            initialize_ws1988_adaptation(cf[c], sponts[t], &synstrength[t][c], 
+                                         &synslope[t][c], &VI[t][c], &PG[t][c], &VL[t][c], 
+                                         &PL[t][c], &CG[t][c], &CI[t][c], &CL[t][c]);
+        }
     }
 
     /* Calculate middle-ear output */
@@ -367,23 +376,42 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
             ihcout[c][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[c], 
                                       ihcl[c]);
 
-            /* Apply double-exponential adaptation */
-            apply_ws1988_adaptation(ihcout[c], n, synstrength[c], synslope[c], VI[c], PG[c], 
-                                    VL[c], PL[c], CG[c], tdres, &CI[c], &CL[c], &CIlast[c],
+            /* Apply double-exponential adaptation, HSR + LSR */
+            apply_ws1988_adaptation(ihcout[c], n, synstrength[0][c], synslope[0][c], 
+                                    VI[0][c], PG[0][c], VL[0][c], PL[0][c], CG[0][c], 
+                                    tdres, &CI[0][c], &CL[0][c], &CIlast[0][c],
                                     expout_hsr[c]);
+            apply_ws1988_adaptation(ihcout[c], n, synstrength[1][c], synslope[1][c], 
+                                    VI[1][c], PG[1][c], VL[1][c], PL[1][c], CG[1][c], 
+                                    tdres, &CI[1][c], &CL[1][c], &CIlast[1][c],
+                                    expout_lsr[c]);
 
             /* Apply power-law adaptation */
-            sout1_hsr[c][n]  = __max(0, expout_hsr[c][n] + randNums[c][n] - alpha1*I1[c]);
-            sout2_hsr[c][n] = __max(0, expout_hsr[c][n] - alpha2*I2[c]);
-            I1[c] = 0.0; I2[c] = 0.0;
+            sout1_hsr[c][n]  = __max(0, expout_hsr[c][n] + randNums[c][n] - alpha1*I1[0][c]);
+            sout2_hsr[c][n] = __max(0, expout_hsr[c][n] - alpha2*I2[0][c]);
+            I1[0][c] = 0.0; I2[0][c] = 0.0;
             for (int j = 0; j < n+1; ++j) {
-                I1[c] += (sout1_hsr[c][j])*tdres/((n-j)*tdres + beta1);
-                I2[c] += (sout2_hsr[c][j])*tdres/((n-j)*tdres + beta2);
+                I1[0][c] += (sout1_hsr[c][j])*tdres/((n-j)*tdres + beta1);
+                I2[0][c] += (sout2_hsr[c][j])*tdres/((n-j)*tdres + beta2);
             }
             synout_hsr[c][n] = sout1_hsr[c][n] + sout2_hsr[c][n];
 
             /* Compute instantaneous rate from synapse output */
             anrateout_hsr[c][n] = synout_hsr[c][n] / (1.0 + pow(0.75e-3, synout_hsr[c][n]));
+
+            /* Apply power-law adaptation */
+            sout1_lsr[c][n]  = __max(0, expout_lsr[c][n] + randNums[c][n] - alpha1*I1[1][c]);
+            sout2_lsr[c][n] = __max(0, expout_lsr[c][n] - alpha2*I2[1][c]);
+            I1[1][c] = 0.0; I2[1][c] = 0.0;
+            for (int j = 0; j < n+1; ++j) {
+                I1[1][c] += (sout1_lsr[c][j])*tdres/((n-j)*tdres + beta1);
+                I2[1][c] += (sout2_lsr[c][j])*tdres/((n-j)*tdres + beta2);
+            }
+            synout_lsr[c][n] = sout1_lsr[c][n] + sout2_lsr[c][n];
+
+            /* Compute instantaneous rate from synapse output */
+            anrateout_lsr[c][n] = synout_lsr[c][n] / (1.0 + pow(0.75e-3, synout_lsr[c][n]));
+
         }
     }
 
