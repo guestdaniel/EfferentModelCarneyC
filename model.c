@@ -145,6 +145,13 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
                                    double, double, double, double *, double *, double *,
                                    double *);
 
+    /* Declare variables that allow us to easily reference LSR/HSR paths */
+    double** expout[2] = {expout_hsr, expout_lsr};
+    double** sout1[2] = {sout1_hsr, sout1_lsr};
+    double** sout2[2] = {sout2_hsr, sout2_lsr};
+    double** synout[2] = {synout_hsr, synout_lsr};
+    double** anrateout[2] = {anrateout_hsr, anrateout_lsr};
+
     /* Declare variables for the BM/IHC stage to temporarily store outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, 
            c2vihctmp, me_curr;
@@ -376,42 +383,27 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
             ihcout[c][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[c], 
                                       ihcl[c]);
 
-            /* Apply double-exponential adaptation, HSR + LSR */
-            apply_ws1988_adaptation(ihcout[c], n, synstrength[0][c], synslope[0][c], 
-                                    VI[0][c], PG[0][c], VL[0][c], PL[0][c], CG[0][c], 
-                                    tdres, &CI[0][c], &CL[0][c], &CIlast[0][c],
-                                    expout_hsr[c]);
-            apply_ws1988_adaptation(ihcout[c], n, synstrength[1][c], synslope[1][c], 
-                                    VI[1][c], PG[1][c], VL[1][c], PL[1][c], CG[1][c], 
-                                    tdres, &CI[1][c], &CL[1][c], &CIlast[1][c],
-                                    expout_lsr[c]);
+            /* Loop over fiber types */
+            for (int t = 0; t < n_fiber_type; t++) {
+                /* Apply Westerman and Smith three-store-diffusion adaptation */
+                apply_ws1988_adaptation(ihcout[c], n, synstrength[t][c], synslope[t][c], 
+                                        VI[t][c], PG[t][c], VL[t][c], PL[t][c], CG[t][c], 
+                                        tdres, &CI[t][c], &CL[t][c], &CIlast[t][c],
+                                        expout[t][c]);
 
-            /* Apply power-law adaptation */
-            sout1_hsr[c][n]  = __max(0, expout_hsr[c][n] + randNums[c][n] - alpha1*I1[0][c]);
-            sout2_hsr[c][n] = __max(0, expout_hsr[c][n] - alpha2*I2[0][c]);
-            I1[0][c] = 0.0; I2[0][c] = 0.0;
-            for (int j = 0; j < n+1; ++j) {
-                I1[0][c] += (sout1_hsr[c][j])*tdres/((n-j)*tdres + beta1);
-                I2[0][c] += (sout2_hsr[c][j])*tdres/((n-j)*tdres + beta2);
+                /* Apply power-law adaptation */
+                sout1[t][c][n]  = __max(0, expout[t][c][n] + randNums[c][n] - alpha1*I1[t][c]);
+                sout2[t][c][n] = __max(0, expout[t][c][n] - alpha2*I2[t][c]);
+                I1[t][c] = 0.0; I2[t][c] = 0.0;
+                for (int j = 0; j < n+1; ++j) {
+                    I1[t][c] += (sout1[t][c][j])*tdres/((n-j)*tdres + beta1);
+                    I2[t][c] += (sout2[t][c][j])*tdres/((n-j)*tdres + beta2);
+                }
+                synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
+
+                /* Compute instantaneous rate from synapse output */
+                anrateout[t][c][n] = synout[t][c][n] / (1.0 + pow(0.75e-3, synout[t][c][n]));
             }
-            synout_hsr[c][n] = sout1_hsr[c][n] + sout2_hsr[c][n];
-
-            /* Compute instantaneous rate from synapse output */
-            anrateout_hsr[c][n] = synout_hsr[c][n] / (1.0 + pow(0.75e-3, synout_hsr[c][n]));
-
-            /* Apply power-law adaptation */
-            sout1_lsr[c][n]  = __max(0, expout_lsr[c][n] + randNums[c][n] - alpha1*I1[1][c]);
-            sout2_lsr[c][n] = __max(0, expout_lsr[c][n] - alpha2*I2[1][c]);
-            I1[1][c] = 0.0; I2[1][c] = 0.0;
-            for (int j = 0; j < n+1; ++j) {
-                I1[1][c] += (sout1_lsr[c][j])*tdres/((n-j)*tdres + beta1);
-                I2[1][c] += (sout2_lsr[c][j])*tdres/((n-j)*tdres + beta2);
-            }
-            synout_lsr[c][n] = sout1_lsr[c][n] + sout2_lsr[c][n];
-
-            /* Compute instantaneous rate from synapse output */
-            anrateout_lsr[c][n] = synout_lsr[c][n] / (1.0 + pow(0.75e-3, synout_lsr[c][n]));
-
         }
     }
 
