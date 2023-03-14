@@ -1,5 +1,5 @@
  /*
-  This is v0.1.2 of the code for subcortical auditory model model of:
+  This is v0.3.0 of the code for subcortical auditory model model of:
 
   Guest, D. R., ..., and Carney, L. H. (202x). ...
 
@@ -76,9 +76,12 @@
  * the number of samples in the simulation (totalstim).
  * 
  * @param px Vector containing sound-pressure waveform (Pa), size (totalstim, )
- * @param randNums Matrix of fractional Gaussian noise, size (n_chan, totalstim), see 
- *   2014 paper for details on how this noise should be synthesized (note: each channel's 
- *   noise should be independent.
+ * @param randNums_hsr Matrix of fractional Gaussian noise for the high-spontaneous-rate
+ *   signal path, of size (n_chan, totalstim), see 2014 paper for details on how this noise 
+ *   should be synthesized 
+ * @param randNums_lsr Matrix of fractional Gaussian noise for the low-spontaneous-rate
+ *   signal path, of size (n_chan, totalstim), see 2014 paper for details on how this noise 
+ *   should be synthesized 
  * @param cf Vector containing characteristic frequencies for each channel (Hz), 
  *  size (n_chan, )
  * @param tdres Sample time resolution (s), i.e., reciprocal of the sampling rate (1/Hz)
@@ -103,22 +106,37 @@
  * @param c1out Matrix to store output of signal-path C1 filter, size (n_chan, totalstim)
  * @param c2out Matrix to store output of signal-path C2 filter, size (n_chan, totalstim)
  * @param ihcout Matrix to store output of inner hair cell, size (n_chan, totalstim)
- * @param exponOut Matrix to store output of exponential adaptation stage, size (n_chan, totalstim)
- * @param sout1 Matrix to store output of slow power-law adaptation stage, size (n_chan, totalstim)
- * @param sout2 Matrix to store output of fast power-law adaptation stage, size (n_chan, totalstim)
- * @param synout Matrix to store output of synapse, size (n_chan, totalstim)
- * @param anrateout Matrix to store output instantaneous firing rate of auditory nerve, 
- *   size (n_chan, totalstim)
- * @param cnout Matrix to store output of cochlear nucleus, size (n_chan, totalstim)
- * @param icout Matrix to store output of inferior colliculus, size (n_chan, totalstim)
+ * @param expout_hsr Matrix to store output of exponential adaptation stage for 
+ *   high-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param sout1_hsr Matrix to store output of slow power-law adaptation stage for 
+ *   high-spontaneousrate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param sout2_hsr Matrix to store output of fast power-law adaptation stage for
+ *   high-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param synout_hsr Matrix to store output of synapse for high-spontaneous-rate 
+ *   auditory-nerve fiber, size (n_chan, totalstim)
+ * @param expout_lsr Matrix to store output of exponential adaptation stage for 
+ *   low-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param sout1_lsr Matrix to store output of slow power-law adaptation stage for 
+ *   low-spontaneousrate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param sout2_lsr Matrix to store output of fast power-law adaptation stage for
+ *   low-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param synout_lsr Matrix to store output of synapse for low-spontaneous-rate 
+ *   auditory-nerve fiber, size (n_chan, totalstim)
+ * @param anrateout_lsr Matrix to store output instantaneous firing rate of 
+ *   low-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param anrateout_hsr Matrix to store output instantaneous firing rate of 
+ *   high-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param cnout Matrix to store output of cochlear nucleus stage, size (n_chan, totalstim)
+ * @param icout Matrix to store output of inferior colliculus stage, size (n_chan, totalstim)
  */
-void model(double *px, double **randNums, double *cf, int n_chan, double tdres, 
-           int totalstim, double cohc, double cihc, int species, double spont, 
+void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf, int n_chan, 
+           double tdres, int totalstim, double cohc, double cihc, int species, double spont, 
            double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
            double ic_tau_e, double ic_tau_i, double ic_delay, double ic_amp, double ic_inh,
            double **controlout, double **c1out, double **c2out, double **ihcout, 
-           double **exponOut, double **sout1, double **sout2, double **synout,
-           double **anrateout, double **cnout, double **icout) {
+           double **expout_hsr, double **sout1_hsr, double **sout2_hsr, double **synout_hsr,
+           double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
+           double **anrateout_hsr, double **anrateout_lsr, double **cnout, double **icout) {
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
@@ -141,6 +159,22 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     void filter_alpha(double *, int, double, double *, double *, double *);
     double hw_rectify(double);
     void delay_signal(double *, int, int, double*);
+    double initialize_ws1988_adaptation(double, double, double *, double *, double *,
+                                        double *, double *, double *, double *, double *,
+                                        double *);
+    double apply_ws1988_adaptation(double *, int, double, double, double, double, double,
+                                   double, double, double, double *, double *, double *,
+                                   double *);
+    double apply_powerlaw_adaptation(double *, double *, double *, double *, int, double,
+                                     double, double, double, double, double *, double *);
+
+    /* Declare variables that allow us to easily reference LSR/HSR paths */
+    double** randNums[2] = {randNums_hsr, randNums_lsr};
+    double** expout[2] = {expout_hsr, expout_lsr};
+    double** sout1[2] = {sout1_hsr, sout1_lsr};
+    double** sout2[2] = {sout2_hsr, sout2_lsr};
+    double** synout[2] = {synout_hsr, synout_lsr};
+    double** anrateout[2] = {anrateout_hsr, anrateout_lsr};
 
     /* Declare variables for the BM/IHC stage to temporarily store outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, 
@@ -249,16 +283,16 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
     }
 
     /* Declare variables used in the AN stage that are fixed across channels or reused */
-    double alpha1, beta1, alpha2, beta2, PImax, Asp, TauR, TauST, Ar_Ast, PTS,
-           k1, k2, tmp, PPI, CIlast, temp;
+    double alpha1, beta1, alpha2, beta2;
 
-    /* Declare other variables used in the AN stage (all vary by channel) */
-    double cf_factor[n_chan], kslope[n_chan], Ass[n_chan], Aon[n_chan], AR[n_chan],
-           AST[n_chan], Prest[n_chan], CG[n_chan], gamma1[n_chan], gamma2[n_chan],
-           VI0[n_chan], VI1[n_chan], VI[n_chan], alpha[n_chan], beta[n_chan], 
-           theta1[n_chan], theta2[n_chan], theta3[n_chan], PL[n_chan], PG[n_chan],
-           CI[n_chan], CL[n_chan], VL[n_chan], vsat[n_chan], tmpst[n_chan], 
-           synstrength[n_chan], synslope[n_chan], I1[n_chan], I2[n_chan];
+    /* Declare other variables used in the AN stage (all vary by channel/fiber type) */
+    int n_fiber_type = 2;  // HSR==0, LSR==1
+    double sponts[2] = {100.0, 0.1}; 
+    double synstrength[n_fiber_type][n_chan], synslope[n_fiber_type][n_chan], 
+           VI[n_fiber_type][n_chan], PG[n_fiber_type][n_chan], CG[n_fiber_type][n_chan],
+           VL[n_fiber_type][n_chan], PL[n_fiber_type][n_chan], I1[n_fiber_type][n_chan], 
+           I2[n_fiber_type][n_chan], CI[n_fiber_type][n_chan], CL[n_fiber_type][n_chan], 
+           CIlast[n_fiber_type][n_chan];
 
     /* Loop over channels to calculate parameters, coefficients, etc. for each channel */
     for (int c = 0; c < n_chan; c++) {
@@ -298,63 +332,20 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
         alpha1 = 2.5e-6*100e3; 
         beta1  = 5e-4; 
         alpha2 = 1e-2*100e3; 
-        beta2  = 1e-1; 
-        for (int i = 0; i < n_chan; i++) {
-            I1[i] = 0.0;
-            I2[i] = 0.0;
+        beta2  = 1e-1;
+        for (int t = 0; t < n_fiber_type; t++) {
+            for (int i = 0; i < n_chan; i++) {
+                I1[t][i] = 0.0;
+                I2[t][i] = 0.0;
+            }
         }
 
         /* Set parameters for double-exponential adaptation (based on fiber type / spont) */
-        if (spont == 100) {
-            cf_factor[c] = __min(800, pow(10, 0.29*cf[c]/1e3 + 0.7));
-        } else if (spont == 4) {
-            cf_factor[c] = __min(50, 2.5e-4*cf[c]*4 + 0.2);
-        } else {
-            cf_factor[c] = __min(1.0, 2.5e-4*cf[c]*0.1 + 0.15);
+        for (int t = 0; t < n_fiber_type; t++) {
+            initialize_ws1988_adaptation(cf[c], sponts[t], &synstrength[t][c], 
+                                         &synslope[t][c], &VI[t][c], &PG[t][c], &VL[t][c], 
+                                         &PL[t][c], &CG[t][c], &CI[t][c], &CL[t][c]);
         }
-        
-        PImax  = 0.6;                /* PI2 : Maximum of the PI(PI at steady state) */
-        Asp = spont*3.0;             /* Spontaneous Firing Rate */
-        TauR   = 2e-3;               /* Rapid Time Constant eq.10 */
-        TauST  = 60e-3;              /* Short Time Constant eq.10 */
-        Ar_Ast = 6;                  /* Ratio of Ar/Ast */
-        PTS    = 3;                  /* Peak to Steady State Ratio, characteristic of PSTH */
-        k1     = -1/TauR;            /* eq.8 & eq.10 */
-        k2     = -1/TauST;           /* eq.8 & eq.10 */
-
-        kslope[c] = (1+50.0)/(5+50.0)*cf_factor[c]*20.0*PImax;
-        Ass[c] = 800*(1+cf[c]/100e3);  /* Steady State Firing Rate eq.10 */
-
-        Aon[c] = PTS*Ass[c];                            /* Onset rate = Ass+Ar+Ast eq.10 */
-        AR[c] = (Aon[c]-Ass[c])*Ar_Ast/(1+Ar_Ast);      /* Rapid component magnitude: eq.10 */
-        AST[c] = Aon[c]-Ass[c]-AR[c];                   /* Short time component: eq.10 */
-        Prest[c] = PImax/Aon[c]*Asp;                    /* eq.A15 */
-        CG[c] = (Asp*(Aon[c]-Asp))/(Aon[c]*Prest[c]*(1-Asp/Ass[c]));    /* eq.A16 */
-        gamma1[c] = CG[c]/Asp;                          /* eq.A19 */
-        gamma2[c] = CG[c]/Ass[c];                       /* eq.A20 */
-        /* below: eq.A21 & eq.A22 */
-        VI0[c]    = (1-PImax/Prest[c]) / 
-            (gamma1[c]*(AR[c]*(k1-k2)/CG[c]/PImax+k2/Prest[c]/gamma1[c]-k2/PImax/gamma2[c]));
-        VI1[c]    = (1-PImax/Prest[c]) / 
-            (gamma1[c]*(AST[c]*(k2-k1)/CG[c]/PImax+k1/Prest[c]/gamma1[c]-k1/PImax/gamma2[c]));
-        VI[c]  = (VI0[c]+VI1[c])/2;
-        alpha[c]  = gamma2[c]/k1/k2;                    /* eq.A23,eq.A24 or eq.7 */
-        beta[c]   = -(k1+k2)*alpha[c];                  /* eq.A23 or eq.7 */
-        theta1[c] = alpha[c]*PImax/VI[c];
-        theta2[c] = VI[c]/PImax;
-        theta3[c] = gamma2[c]-1/PImax;
-
-        PL[c]  = ((beta[c]-theta2[c]*theta3[c])/theta1[c]-1)*PImax;  /* eq.4' */
-        PG[c]  = 1/(theta3[c]-1/PL[c]);                 /* eq.5' */
-        VL[c]  = theta1[c]*PL[c]*PG[c];                 /* eq.3' */
-        CI[c]  = Asp/Prest[c];                          /* CI at rest, from eq.A3,eq.A12 */
-        CL[c]  = CI[c]*(Prest[c]+PL[c])/PL[c];          /* CL at rest, from eq.1 */
-
-        if (kslope[c] >= 0) vsat[c] = kslope[c]+Prest[c];
-        tmpst[c] = log(2)*vsat[c]/Prest[c];
-        if(tmpst[c]<400) synstrength[c] = log(exp(tmpst[c])-1);
-        else synstrength[c] = tmpst[c];
-        synslope[c] = Prest[c]/log(2)*synstrength[c];
     }
 
     /* Declare variables used in the subcortical stage */
@@ -447,38 +438,29 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
             ihcout[c][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[c], 
                                       ihcl[c]);
 
-            /* Apply double-exponential adaptation */
-            tmp = synstrength[c]*(ihcout[c][n]);
-            if(tmp<400) tmp = log(1 + exp(tmp));
-            PPI = synslope[c]/synstrength[c]*tmp;
-            CIlast = CI[c];
-            CI[c] = CI[c] + (tdres/VI[c])*(-PPI*CI[c] + PL[c]*(CL[c]-CI[c]));
-            CL[c] = CL[c] + (tdres/VL[c])*(-PL[c]*(CL[c]-CIlast) + PG[c]*(CG[c]-CL[c]));
-            if (CI[c] < 0) {
-                temp = 1/PG[c] + 1/PL[c] + 1/PPI;
-                CI[c] = CG[c]/(PPI*temp);
-                CL[c] = CI[c]*(PPI+PL[c])/PL[c];
-            }
-            exponOut[c][n] = CI[c]*PPI;
+            /* Loop over fiber types */
+            for (int t = 0; t < n_fiber_type; t++) {
+                /* Apply Westerman and Smith three-store-diffusion adaptation */
+                apply_ws1988_adaptation(ihcout[c], n, synstrength[t][c], synslope[t][c], 
+                                        VI[t][c], PG[t][c], VL[t][c], PL[t][c], CG[t][c], 
+                                        tdres, &CI[t][c], &CL[t][c], &CIlast[t][c],
+                                        expout[t][c]);
 
-            /* Apply power-law adaptation */
-            sout1[c][n]  = __max(0, exponOut[c][n] + randNums[c][n] - alpha1*I1[c]);
-            sout2[c][n] = __max(0, exponOut[c][n] - alpha2*I2[c]);
-            I1[c] = 0.0; I2[c] = 0.0;
-            for (int j = 0; j < n+1; ++j) {
-                I1[c] += (sout1[c][j])*tdres/((n-j)*tdres + beta1);
-                I2[c] += (sout2[c][j])*tdres/((n-j)*tdres + beta2);
-            }
-            synout[c][n] = sout1[c][n] + sout2[c][n];
+                /* Apply power-law adaptation */
+                apply_powerlaw_adaptation(expout[t][c], randNums[t][c], &I1[t][c], 
+                                          &I2[t][c], n, alpha1, beta1, alpha2, beta2, tdres,
+                                          sout1[t][c], sout2[t][c]);
+                synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
 
-            /* Compute instantaneous rate from synapse output */
-            anrateout[c][n] = synout[c][n] / (1.0 + pow(0.75e-3, synout[c][n]));
+                /* Compute instantaneous rate from synapse output */
+                anrateout[t][c][n] = synout[t][c][n] / (1.0 + pow(0.75e-3, synout[t][c][n]));
+            }
 
             /* Delay rate output for SFIE cochlear nucleus inhibitory pathway */
-            delay_signal(anrateout[c], n, cn_len_delay, cn_i[c]);
+            delay_signal(anrateout[0][c], n, cn_len_delay, cn_i[c]);
 
             /* Apply SFIE filters for cochlear nucleus stage */
-            filter_alpha(anrateout[c], n, 1/tdres, cn_B_e, cn_A_e, cn_e_tmp[c]);
+            filter_alpha(anrateout[0][c], n, 1/tdres, cn_B_e, cn_A_e, cn_e_tmp[c]);
             filter_alpha(cn_i[c], n, 1/tdres, cn_B_i, cn_A_i, cn_i_tmp[c]);
 
             /* Compute output signal and rectify */
@@ -504,8 +486,8 @@ void model(double *px, double **randNums, double *cf, int n_chan, double tdres,
         free(cn_i[i]);
         free(cn_e_tmp[i]);
         free(cn_i_tmp[i]);
-        // free(ic_e_tmp[i]);
-        // free(ic_i_tmp[i]);
+        free(ic_e_tmp[i]);
+        free(ic_i_tmp[i]);
     }
     free(meout);
     for (int i = 0; i < n_chan; i++) {
