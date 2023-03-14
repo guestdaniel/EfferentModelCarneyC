@@ -1,4 +1,13 @@
-0.1.2
+0.2.0
+      - Added support for simultaneously simulating HSR/LSR responses, which resulted in 
+        several associated changes (described below)
+      - Hid both adaptation stages (Westerman and Smith / power law) in several functions
+        now defined in adaptation.c. These include an initialization function for 
+        Westerman and Smith adaptation and samplewise implementation functions for both 
+        types of adaptation
+      - Modified main model function signature, declarations and initializations, etc. to 
+        match new parallel signal flow in AN stage
+0.1.1
       - Cleaned up documentation in several functions and added some helpful comments to 
         point to the right papers for various equations
       - Removed meout, c1vihcout, c2vihcout from main function signature to reduce 
@@ -6,7 +15,7 @@
         outputs)
       - Reordered function signature for main model function to put synout as the last 
         argument (so that all outputs match signal flow)
-0.1.1 
+0.1.0 
       - Converted all calculations, inputs, outputs, etc. to multichannel 
       - Modified all functions using static arrays to preserve state across samples to use
         instead state variables passed in and out of functions via pointers, so they can be 

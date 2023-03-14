@@ -1,5 +1,5 @@
  /*
-  This is v0.1.2 of the code for subcortical auditory model model of:
+  This is v0.2.0 of the code for subcortical auditory model model of:
 
   Guest, D. R., ..., and Carney, L. H. (202x). ...
 
