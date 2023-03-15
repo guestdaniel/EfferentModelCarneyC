@@ -618,7 +618,7 @@ double moc_nonlinearity(double x, double beta, double offset, double maxrate,
     if (x < offset) {
         return maxrate;
     } else {
-        return ((maxrate-minrate) * 1.0/(1.0 + pow(beta*(x-offset), 2.0))) - minrate;
+        return ((maxrate-minrate) * 1.0/(1.0 + pow(beta*(x-offset), 2.0))) + minrate;
     }
 }
 
