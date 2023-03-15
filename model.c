@@ -103,6 +103,10 @@
  * @param ic_amp Overall amplitude scalar for SFIE inferior colliculus stage
  * @param ic_inh Inhibition strength scalar for SFIE inferior colliculus stage
  * @param moc_cutoff Cutoff value for medial olivocochlear lowpass filter in Hz
+ * @param moc_beta Cutoff value for medial olivocochlear lowpass filter in Hz
+ * @param moc_offset Offset value for medial olivocochlear IO nonlinearity (sp/s)
+ * @param moc_minrate Minimum output value for medial olivocochlear IO nonlinearity 
+ * @param moc_maxrate Maximum output value for medial olivocochlear IO nonlinearity
  * @param controlout Matrix to store output of control-path filter, size (n_chan, totalstim)
  * @param c1out Matrix to store output of signal-path C1 filter, size (n_chan, totalstim)
  * @param c2out Matrix to store output of signal-path C2 filter, size (n_chan, totalstim)
@@ -129,18 +133,19 @@
  *   high-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
  * @param cnout Matrix to store output of cochlear nucleus stage, size (n_chan, totalstim)
  * @param icout Matrix to store output of inferior colliculus stage, size (n_chan, totalstim)
+ * @param mocwdrin Matrix to store "wide-dynamic-range" inputs to MOC, size (n_chan, totalstim)
  * @param mocout Matrix to store output of medial olivocochlear stage, size (n_chan, totalstim)
  */
 void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf, int n_chan, 
            double tdres, int totalstim, double cohc, double cihc, int species, double spont, 
            double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
            double ic_tau_e, double ic_tau_i, double ic_delay, double ic_amp, double ic_inh,
-           double moc_cutoff,
+           double moc_cutoff, double moc_beta, double moc_offset, double moc_minrate, double moc_maxrate,
            double **controlout, double **c1out, double **c2out, double **ihcout, 
            double **expout_hsr, double **sout1_hsr, double **sout2_hsr, double **synout_hsr,
            double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
            double **anrateout_hsr, double **anrateout_lsr, double **cnout, double **icout,
-           double **mocout) {
+           double **mocwdrin, double **mocout) {
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
@@ -172,6 +177,7 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     void apply_powerlaw_adaptation(double *, double *, double *, double *, int, double,
                                      double, double, double, double, double *, double *);
     void filter_lowpass_iir(double *, int, double, double *);
+    double moc_nonlinearity(double, double, double, double, double);
 
     /* Declare variables that allow us to easily reference LSR/HSR paths */
     double** randNums[2] = {randNums_hsr, randNums_lsr};
@@ -387,7 +393,6 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     /* Calculate varibales for the MOC stage */
     double nyquist = (1/tdres)/2;
     double moc_d = exp(-TWOPI * (moc_cutoff/nyquist));
-    printf("%f", moc_d);
 
     /* Calculate middle-ear output */
     middle_ear(px, tdres, totalstim, species, meout);
@@ -488,8 +493,10 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
             ictmp = tdres * (ic_amp*ic_e_tmp[c][n] - (ic_amp*ic_inh)*ic_i_tmp[c][n]);
             icout[c][n] = hw_rectify(ictmp);
 
-            /* MOC is just lowpassed LSR */
-            filter_lowpass_iir(anrateout_lsr[c], n, moc_d, mocout[c]);
+            /* Lowpass filter LSR and apply MOC IO nonlinearity */
+            filter_lowpass_iir(anrateout_lsr[c], n, moc_d, mocwdrin[c]);
+            mocout[c][n] = moc_nonlinearity(mocwdrin[c][n], moc_beta, moc_offset, 
+                                            moc_maxrate, moc_minrate);
         }
     }
 
@@ -586,6 +593,32 @@ void filter_lowpass_iir(double *x, int n, double d, double *y) {
         y[n] = (1-d)*x[n];
     } else {
         y[n] = (1-d)*x[n] + d*y[n-1];
+    }
+}
+
+/**
+ * moc_nonlinearity
+ * 
+ * Simple nonlineariy relating lowpass-filtered MOC input to MOC output
+ * 
+ * Nonlinearity that is applied to lowpass-filtered MOC input to genereate MOC output. 
+ * Outputs are in the range (minrate, maxrate). Monotonically decreases from zero with 
+ * optional offset. If maxrate=1.0 and minrate~=0.0, then the MOC output can be interpreted
+ * as a cohc value in the model code (is on the same scale).
+ * 
+ * @param x Input value
+ * @param beta Parameter of nonlinearity, lower values correspond to more gradual slopes
+ * @param offset Values below offset will return maxrate, values above offset will apply
+ *   nonlinearity
+ * @param maxrate Maximum output 
+ * @param minrate Minimum output 
+ */
+double moc_nonlinearity(double x, double beta, double offset, double maxrate, 
+                        double minrate) {
+    if (x < offset) {
+        return maxrate;
+    } else {
+        return ((maxrate-minrate) * 1.0/(1.0 + pow(beta*(x-offset), 2.0))) - minrate;
     }
 }
 
