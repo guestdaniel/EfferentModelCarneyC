@@ -102,6 +102,7 @@
  * @param ic_delay Inhibitory path delay time (s) for SFIE inferior colliculus stage
  * @param ic_amp Overall amplitude scalar for SFIE inferior colliculus stage
  * @param ic_inh Inhibition strength scalar for SFIE inferior colliculus stage
+ * @param moc_cutoff Cutoff value for medial olivocochlear lowpass filter in Hz
  * @param controlout Matrix to store output of control-path filter, size (n_chan, totalstim)
  * @param c1out Matrix to store output of signal-path C1 filter, size (n_chan, totalstim)
  * @param c2out Matrix to store output of signal-path C2 filter, size (n_chan, totalstim)
@@ -128,15 +129,18 @@
  *   high-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
  * @param cnout Matrix to store output of cochlear nucleus stage, size (n_chan, totalstim)
  * @param icout Matrix to store output of inferior colliculus stage, size (n_chan, totalstim)
+ * @param mocout Matrix to store output of medial olivocochlear stage, size (n_chan, totalstim)
  */
 void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf, int n_chan, 
            double tdres, int totalstim, double cohc, double cihc, int species, double spont, 
            double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
            double ic_tau_e, double ic_tau_i, double ic_delay, double ic_amp, double ic_inh,
+           double moc_cutoff,
            double **controlout, double **c1out, double **c2out, double **ihcout, 
            double **expout_hsr, double **sout1_hsr, double **sout2_hsr, double **synout_hsr,
            double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
-           double **anrateout_hsr, double **anrateout_lsr, double **cnout, double **icout) {
+           double **anrateout_hsr, double **anrateout_lsr, double **cnout, double **icout,
+           double **mocout) {
     /* Declare functions used in model */
 	void middle_ear(double *, double, int, int, double *);
     void Get_tauwb(int, double *, int, int, double *, double *);
@@ -159,14 +163,15 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     void filter_alpha(double *, int, double, double *, double *, double *);
     double hw_rectify(double);
     void delay_signal(double *, int, int, double*);
-    double initialize_ws1988_adaptation(double, double, double *, double *, double *,
+    void initialize_ws1988_adaptation(double, double, double *, double *, double *,
                                         double *, double *, double *, double *, double *,
                                         double *);
-    double apply_ws1988_adaptation(double *, int, double, double, double, double, double,
+    void apply_ws1988_adaptation(double *, int, double, double, double, double, double,
                                    double, double, double, double *, double *, double *,
                                    double *);
-    double apply_powerlaw_adaptation(double *, double *, double *, double *, int, double,
+    void apply_powerlaw_adaptation(double *, double *, double *, double *, int, double,
                                      double, double, double, double, double *, double *);
+    void filter_lowpass_iir(double *, int, double, double *);
 
     /* Declare variables that allow us to easily reference LSR/HSR paths */
     double** randNums[2] = {randNums_hsr, randNums_lsr};
@@ -379,6 +384,11 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     get_alpha_norm(ic_tau_e, 1/tdres, 1.0, ic_B_e, ic_A_e);
     get_alpha_norm(ic_tau_i, 1/tdres, 1.0, ic_B_i, ic_A_i);
 
+    /* Calculate varibales for the MOC stage */
+    double nyquist = (1/tdres)/2;
+    double moc_d = exp(-TWOPI * (moc_cutoff/nyquist));
+    printf("%f", moc_d);
+
     /* Calculate middle-ear output */
     middle_ear(px, tdres, totalstim, species, meout);
 
@@ -477,6 +487,9 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
             /* Compute output signal and rectify */
             ictmp = tdres * (ic_amp*ic_e_tmp[c][n] - (ic_amp*ic_inh)*ic_i_tmp[c][n]);
             icout[c][n] = hw_rectify(ictmp);
+
+            /* MOC is just lowpassed LSR */
+            filter_lowpass_iir(anrateout_lsr[c], n, moc_d, mocout[c]);
         }
     }
 
@@ -546,6 +559,33 @@ void delay_signal(double *input, int n, int len_delay, double *output) {
         output[n] = 0.0;
     } else {
         output[n] = input[n - len_delay]; 
+    }
+}
+
+/**
+ * filter_lowpass_iir
+ * 
+ * Applies a single-pole IIR lowpass filter to a vector of data sample by sample
+ * 
+ * Implements filter defined by recurrence relation:
+ *   y[n] = (1-d)*x[n] + d*y[n-1]
+ * 
+ * Note that decay value (d) is related to time constant (tau) by:
+ *   d = exp(-1/tau)
+ * 
+ * Note also that d is related to the (normalized) cutoff frequency (f) by
+ *   f = -ln(d)/(2*pi)
+ * 
+ * @param x Input vector
+ * @param n Current sample index
+ * @param d Decay value
+ * @param y Output vector
+ */
+void filter_lowpass_iir(double *x, int n, double d, double *y) {
+    if (n == 0) {
+        y[n] = (1-d)*x[n];
+    } else {
+        y[n] = (1-d)*x[n] + d*y[n-1];
     }
 }
 
