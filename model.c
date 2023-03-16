@@ -1,5 +1,5 @@
  /*
-  This is v0.3.0 of the code for subcortical auditory model model of:
+  This is v0.3.1 of the code for subcortical auditory model model of:
 
   Guest, D. R., ..., and Carney, L. H. (202x). ...
 
@@ -322,16 +322,12 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
             centerfreq[c] = 165.4 * (pow(10, (bmplace[c]+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
         }
 
-        /* Determine time constants for the wideband control-path filter */
+        /* Determine time constants for cochlear filters that are time-invariant */
         Get_tauwb(c, cf, species, 3, Taumax, Taumin);
-
-        /* Determine time constants for the narrowband signal-path C1 filter */
-        Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
-        bmTaubm[c] = cohc*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
-
-        /* Determine further parameters for the control-path wideband filter */
         TauWBMax[c] = Taumin[c] + 0.2*(Taumax[c]-Taumin[c]); // Eq 4, Zilany and Bruce (2006)
         TauWBMin[c] = TauWBMax[c]/Taumax[c]*Taumin[c];
+        Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
+        bmTaubm[c] = cohc*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
         tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c]) * 
             (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
         wbgain[c] = gain_groupdelay(tdres, centerfreq[c], cf[c], tauwb[c], &grdelay[c]);
@@ -418,6 +414,17 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
                                  &wbphase[c], wbgtf[c], wbgtfl[c]);
             wbout = pow((tauwb[c]/TauWBMax[c]), 3) * wbout1 * 10e3 *__max(1, cf[c]/5e3);
 
+            /* Determine time constants for cochlear filters */
+            Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
+            if (n == 0) {
+                bmTaubm[c] = cohc*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
+            } else {
+                bmTaubm[c] = (mocout[c][n-1])*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
+            }
+            tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c]) * 
+                (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
+            wbgain[c] = gain_groupdelay(tdres, centerfreq[c], cf[c], tauwb[c], &grdelay[c]);
+
             /* Pass the control-path signal through the OHC model (nonlinear transduction and 
             lowpass filtering) */
             ohcnonlinout = Boltzman(wbout, 7.0, 12.0, 5.0, 5.0);
@@ -425,7 +432,11 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
             controlout[c][n] = NLafterohc(ohcout, bmTaumin[c], bmTaumax[c], 7.0);
 
             /* Determine time constant and shift of C1 filter poles based on output of OHCs */
-            tauc1 = cohc*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+            if (n == 0) {
+                tauc1 = cohc*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+            } else {
+                tauc1 = (mocout[c][n-1])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+            }
             rsigma = 1/tauc1 - 1/bmTaumax[c];
             tauwb[c] = TauWBMax[c] + (tauc1-bmTaumax[c]) * 
                 (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
@@ -473,7 +484,7 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
                 synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
 
                 /* Compute instantaneous rate from synapse output */
-                anrateout[t][c][n] = synout[t][c][n] / (1.0 + pow(0.75e-3, synout[t][c][n]));
+                anrateout[t][c][n] = synout[t][c][n] / (1.0 + 0.75e-3 * synout[t][c][n]);
             }
 
             /* Delay rate output for SFIE cochlear nucleus inhibitory pathway */
@@ -725,6 +736,8 @@ void middle_ear(double *px, double tdres, int totalstim, int species, double *me
  * @param order Order of the wideband Gammatone filter
  * @param taumax Filter time constant at low sound levels
  * @param taumin Filter time constant at high sound levels
+ * 
+ * TODO Revise implementation to match others (no indexing)
  */
 void Get_tauwb(int idx_chan, double *cf, int species, int order, double *taumax, 
                double *taumin) {
