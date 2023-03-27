@@ -179,7 +179,7 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     void apply_ws1988_adaptation(double *, int, double, double, double, double, double,
                                    double, double, double, double *, double *, double *,
                                    double *);
-    void apply_powerlaw_adaptation(double *, double *, double *, double *, int, double,
+    void apply_powerlaw_adaptation(double *, double *, double *, double *, int, int, double,
                                      double, double, double, double, double *, double *);
     void filter_lowpass_iir(double *, int, double, double *);
     double moc_nonlinearity(double, double, double, double, double);
@@ -481,7 +481,7 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
 
                 /* Apply power-law adaptation */
                 apply_powerlaw_adaptation(expout[t][c], randNums[t][c], &I1[t][c], 
-                                          &I2[t][c], n, alpha1, beta1, alpha2, beta2, tdres,
+                                          &I2[t][c], n, 5000, alpha1, beta1, alpha2, beta2, tdres,
                                           sout1[t][c], sout2[t][c]);
                 synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
 
