@@ -103,10 +103,14 @@
  * @param ic_amp Overall amplitude scalar for SFIE inferior colliculus stage
  * @param ic_inh Inhibition strength scalar for SFIE inferior colliculus stage
  * @param moc_cutoff Cutoff value for medial olivocochlear lowpass filter in Hz
- * @param moc_beta Cutoff value for medial olivocochlear lowpass filter in Hz
- * @param moc_offset Offset value for medial olivocochlear IO nonlinearity (sp/s)
- * @param moc_minrate Minimum output value for medial olivocochlear IO nonlinearity 
- * @param moc_maxrate Maximum output value for medial olivocochlear IO nonlinearity
+ * @param moc_beta_wdr Cutoff value for medial olivocochlear lowpass filter in Hz
+ * @param moc_offset_wdr Offset value for medial olivocochlear IO nonlinearity (sp/s)
+ * @param moc_minrate_wdr Minimum output value for medial olivocochlear IO nonlinearity 
+ * @param moc_maxrate_wdr Maximum output value for medial olivocochlear IO nonlinearity
+ * @param moc_beta_ic Cutoff value for medial olivocochlear lowpass filter in Hz
+ * @param moc_offset_ic Offset value for medial olivocochlear IO nonlinearity (sp/s)
+ * @param moc_minrate_ic Minimum output value for medial olivocochlear IO nonlinearity 
+ * @param moc_maxrate_ic Maximum output value for medial olivocochlear IO nonlinearity
  * @param moc_weight_wdr Weight of the WDR signal in the MOC input, in [0.0, inf)
  * @param moc_weight_ic Weight of the IC signal in the MOC input, in [0.0, inf]
  * @param moc_len_integ How many channels over which to integrate LSR gain control signal (above and below)
@@ -144,8 +148,10 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
            double tdres, int totalstim, double cohc, double cihc, int species, double spont, 
            double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
            double ic_tau_e, double ic_tau_i, double ic_delay, double ic_amp, double ic_inh,
-           double moc_cutoff, double moc_beta, double moc_offset, double moc_minrate, 
-           double moc_maxrate, double moc_weight_wdr, double moc_weight_ic, int moc_len_integ,
+           double moc_cutoff, 
+           double moc_beta_wdr, double moc_offset_wdr, double moc_minrate_wdr, double moc_maxrate_wdr, 
+           double moc_beta_ic, double moc_offset_ic, double moc_minrate_ic, double moc_maxrate_ic, 
+           double moc_weight_wdr, double moc_weight_ic, int moc_len_integ,
            double **controlout, double **c1out, double **c2out, double **ihcout, 
            double **expout_hsr, double **sout1_hsr, double **sout2_hsr, double **synout_hsr,
            double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
@@ -520,21 +526,21 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
 
             /* Incorporate IC contribution into gain */
             gain_combined = gain_combined * 
-                moc_nonlinearity(moc_weight_ic * mocic[c][n], moc_beta, moc_offset, moc_maxrate, moc_minrate);
+                moc_nonlinearity(moc_weight_ic * mocic[c][n], moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic);
 
             /* Determine how many channels we have available to contribute WDR gain */
-            n_chan_incl = 0;
-            for (int subc = 0; subc < n_chan; subc++) {
-                if (abs(c-subc) <= moc_len_integ) {
-                    n_chan_incl += 1;
-                }
-            }
+            // n_chan_incl = 0;
+            // for (int subc = 0; subc < n_chan; subc++) {
+            //     if (abs(c-subc) <= moc_len_integ) {
+            //         n_chan_incl += 1;
+            //     }
+            // }
 
             /* Incorporate WDR contribution into gain */
             for (int subc = 0; subc < n_chan; subc++) {
                 if (abs(c-subc) <= moc_len_integ) {
                     gain_combined = gain_combined * 
-                        moc_nonlinearity(moc_weight_wdr / n_chan_incl * mocwdr[subc][n], moc_beta, moc_offset, moc_maxrate, moc_minrate);
+                        moc_nonlinearity(moc_weight_wdr * mocwdr[subc][n], moc_beta_wdr, moc_offset_wdr, moc_maxrate_wdr, moc_minrate_wdr);
                 }
             }
 
