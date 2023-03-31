@@ -60,6 +60,124 @@
 #endif
 
 /**
+ * model_efferent_simple
+ * 
+ * Simulates peripheral and subcortical responses to a sound-pressure waveform
+ * 
+ * @param px Vector containing sound-pressure waveform (Pa), size (totalstim, )
+ * @param randNums_hsr Matrix of fractional Gaussian noise for the high-spontaneous-rate
+ *   signal path, of size (n_chan, totalstim), see 2014 paper for details on how this noise 
+ *   should be synthesized 
+ * @param randNums_lsr Matrix of fractional Gaussian noise for the low-spontaneous-rate
+ *   signal path, of size (n_chan, totalstim), see 2014 paper for details on how this noise 
+ *   should be synthesized 
+ * @param cf Vector containing characteristic frequencies for each channel (Hz), 
+ *  size (n_chan, )
+ * @param tdres Sample time resolution (s), i.e., reciprocal of the sampling rate (1/Hz)
+ * @param totalstim Number of samples in the simulation
+ * @param cohc Scalar value in [0, 1] controlling the maximum [[cohc]]
+ * @param cihc Scalar value in [0, 1] controlling the maximum output of the inner hair cells
+ * @param species Integer indicating what species to simulate (1==cat, 2=human[shera], 
+ *   3==human[glasberg])
+ * @param ic_tau_e Excitatory path time constant (s) for SFIE inferior colliculus stage
+ * @param ic_tau_i Inhibitory path time constant (s) for SFIE inferior colliculus stage
+ * @param ic_delay Inhibitory path delay time (s) for SFIE inferior colliculus stage
+ * @param ic_amp Overall amplitude scalar for SFIE inferior colliculus stage
+ * @param ic_inh Inhibition strength scalar for SFIE inferior colliculus stage
+ * @param moc_cutoff Cutoff value for medial olivocochlear lowpass filter in Hz
+ * @param moc_beta_wdr Cutoff value for medial olivocochlear lowpass filter in Hz
+ * @param moc_offset_wdr Offset value for medial olivocochlear IO nonlinearity (sp/s)
+ * @param moc_beta_ic Cutoff value for medial olivocochlear lowpass filter in Hz
+ * @param moc_offset_ic Offset value for medial olivocochlear IO nonlinearity (sp/s)
+ * @param moc_weight_wdr Weight of the WDR signal in the MOC input, in [0.0, inf)
+ * @param moc_weight_ic Weight of the IC signal in the MOC input, in [0.0, inf]
+ * @param moc_len_integ How many channels over which to integrate LSR gain control signal (above and below)
+ * @param ihcout Matrix to store output of inner hair cell, size (n_chan, totalstim)
+ * @param anrateout_lsr Matrix to store output instantaneous firing rate of 
+ *   low-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param anrateout_hsr Matrix to store output instantaneous firing rate of 
+ *   high-spontaneous-rate auditory-nerve fiber, size (n_chan, totalstim)
+ * @param icout  Matrix to store output of inferior colliculus stage, size (n_chan, totalstim)
+ * @param gain   Matrix to store time-varying "gain" value in [0, 1], size (n_chan, totalstim)
+ */
+void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums_lsr, 
+                            double *cf, int n_chan, double tdres, int totalstim, double cohc, 
+                            double cihc, int species, double ic_tau_e, double ic_tau_i, 
+                            double ic_delay, double ic_amp, double ic_inh, 
+                            double moc_beta_wdr, double moc_offset_wdr, double moc_beta_ic, 
+                            double moc_offset_ic, double moc_weight_wdr, 
+                            double moc_weight_ic, int moc_len_integ, double **ihcout, 
+                            double **anrateout_hsr, double **anrateout_lsr, double **icout,
+                            double **gain) {
+    /* First, declare functions that will be used in this function */
+    /* TODO Migrate these declarations to a header file */
+    void model(double *, double **, double **, double *, int, 
+           double, int, double, double, int, double, 
+           double, double, double, double, double,
+           double, double, double, double, double,
+           double, 
+           double, double, double, double, 
+           double, double, double, double, 
+           double, double, int,
+           double **, double **, double **, double **, 
+           double **, double **, double **, double **,
+           double **, double **, double **, double **,
+           double **, double **, double **, double **,
+           double **, double **, double **);
+
+    /* Next, allocate memory for all of the extra output matrices */
+    double *controlout[n_chan], *c1out[n_chan], *c2out[n_chan], 
+        *expout_hsr[n_chan], *sout1_hsr[n_chan], *sout2_hsr[n_chan], *synout_hsr[n_chan], 
+        *expout_lsr[n_chan], *sout1_lsr[n_chan], *sout2_lsr[n_chan], *synout_lsr[n_chan],
+        *cnout[n_chan], *mocwdr[n_chan], *mocic[n_chan];
+
+    for (int i = 0; i < n_chan; i++) {
+        controlout[i] = (double*) calloc(totalstim, sizeof(double));
+        c1out[i] = (double*) calloc(totalstim, sizeof(double));
+        c2out[i] = (double*) calloc(totalstim, sizeof(double));
+        expout_hsr[i] = (double*) calloc(totalstim, sizeof(double));
+        sout1_hsr[i] = (double*) calloc(totalstim, sizeof(double));
+        sout2_hsr[i] = (double*) calloc(totalstim, sizeof(double));
+        synout_hsr[i] = (double*) calloc(totalstim, sizeof(double));
+        expout_lsr[i] = (double*) calloc(totalstim, sizeof(double));
+        sout1_lsr[i] = (double*) calloc(totalstim, sizeof(double));
+        sout2_lsr[i] = (double*) calloc(totalstim, sizeof(double));
+        synout_lsr[i] = (double*) calloc(totalstim, sizeof(double));
+        cnout[i] = (double*) calloc(totalstim, sizeof(double));
+        mocwdr[i] = (double*) calloc(totalstim, sizeof(double));
+        mocic[i] = (double*) calloc(totalstim, sizeof(double));
+    }
+
+    /* Call the main model function */
+    model(px, randNums_hsr, randNums_lsr, cf, n_chan, tdres, totalstim, cohc, cihc, species,
+          100.0, 0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6, ic_tau_e, ic_tau_i, ic_delay, ic_amp,
+          ic_inh, 0.2, moc_beta_wdr, moc_offset_wdr, 0.1, 1.0, moc_beta_ic, moc_offset_ic, 
+          0.0, 1.0, moc_weight_wdr, moc_weight_ic, moc_len_integ, controlout, c1out, c2out,
+          ihcout, expout_hsr, sout1_hsr, sout2_hsr, synout_hsr, expout_lsr, sout1_lsr, 
+          sout2_lsr, synout_lsr, anrateout_hsr, anrateout_lsr, cnout, icout, mocwdr, mocic,
+          gain);
+
+    /* Finally, free allocated memory */
+    for (int i = 0; i < n_chan; i++) {
+        free(controlout[i]);
+        free(c1out[i]);
+        free(c2out[i]);
+        free(expout_hsr[i]);
+        free(sout1_hsr[i]);
+        free(sout2_hsr[i]);
+        free(synout_hsr[i]);
+        free(expout_lsr[i]);
+        free(sout1_lsr[i]);
+        free(sout2_lsr[i]);
+        free(synout_lsr[i]);
+        free(cnout[i]);
+        free(mocwdr[i]);
+        free(mocic[i]);
+
+    }
+}
+
+/**
  * model
  * 
  * Simulates peripheral and subcortical responses to a sound-pressure waveform
