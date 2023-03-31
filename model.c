@@ -120,7 +120,7 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
     /* Call the main model function */
     model(px, randNums_hsr, randNums_lsr, cf, n_chan, tdres, totalstim, cohc, cihc, species,
           100.0, 0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6, ic_tau_e, ic_tau_i, ic_delay, ic_amp,
-          ic_inh, 0.2, moc_beta_wdr, moc_offset_wdr, 0.1, 1.0, moc_beta_ic, moc_offset_ic, 
+          ic_inh, 0.2, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0, moc_beta_ic, moc_offset_ic, 
           0.0, 1.0, moc_weight_wdr, moc_weight_ic, moc_len_integ, controlout, c1out, c2out,
           ihcout, expout_hsr, sout1_hsr, sout2_hsr, synout_hsr, expout_lsr, sout1_lsr, 
           sout2_lsr, synout_lsr, anrateout_hsr, anrateout_lsr, cnout, icout, mocwdr, mocic,
