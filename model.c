@@ -75,7 +75,7 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
                             double ic_delay, double ic_amp, double ic_inh, 
                             double moc_beta_wdr, double moc_offset_wdr, double moc_beta_ic, 
                             double moc_offset_ic, double moc_weight_wdr, 
-                            double moc_weight_ic, int moc_len_integ, double **ihcout, 
+                            double moc_weight_ic, double moc_width_wdr, double **ihcout, 
                             double **anrateout_hsr, double **anrateout_lsr, double **icout,
                             double **gain) {
     /* First, declare functions that will be used in this function */
@@ -87,7 +87,7 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
            double, 
            double, double, double, double, 
            double, double, double, double, 
-           double, double, int,
+           double, double, double,
            double **, double **, double **, double **, 
            double **, double **, double **, double **,
            double **, double **, double **, double **,
@@ -121,7 +121,7 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
     model(px, randNums_hsr, randNums_lsr, cf, n_chan, tdres, totalstim, cohc, cihc, species,
           100.0, 0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6, ic_tau_e, ic_tau_i, ic_delay, ic_amp,
           ic_inh, 0.2, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0, moc_beta_ic, moc_offset_ic, 
-          0.0, 1.0, moc_weight_wdr, moc_weight_ic, moc_len_integ, controlout, c1out, c2out,
+          0.0, 1.0, moc_weight_wdr, moc_weight_ic, moc_width_wdr, controlout, c1out, c2out,
           ihcout, expout_hsr, sout1_hsr, sout2_hsr, synout_hsr, expout_lsr, sout1_lsr, 
           sout2_lsr, synout_lsr, anrateout_hsr, anrateout_lsr, cnout, icout, mocwdr, mocic,
           gain);
@@ -255,8 +255,10 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
  * @param [in] moc_weight_ic Scalar weight applied to the IC-MOC rate before it is passed
  * through the IC-MOC nonlinearity and converted into a gain value. Setting this value to
  * 0.0 disables IC-driven gain control, default is 1.0.
- * @param [in] moc_len_integ Number of channels over which WDR gain control signals
- * propagate (TODO: clarify)
+ * @param [in] moc_width_wdr (oct) Range of CFs over which WDR-MOC gain control signal from
+ * a single channel is sent to OHCs. For example, if moc_width_wdr is set to 1.0, then
+ * for a given CF, the WDR-MOC gain control signal for that CF will be applied to the
+ * total gain of channels within the range of [-1/2, 1/2] octaves around CF.
  * @param [out] controlout (n_chan, totalstim) Matrix to store output of control-path filter
  * @param [out] c1out (n_chan, totalstim) Matrix to store output of signal-path C1 filter
  * @param [out] c2out (n_chan, totalstim) Matrix to store output of signal-path C2 filter
@@ -297,7 +299,7 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
            double moc_cutoff, 
            double moc_beta_wdr, double moc_offset_wdr, double moc_minrate_wdr, double moc_maxrate_wdr, 
            double moc_beta_ic, double moc_offset_ic, double moc_minrate_ic, double moc_maxrate_ic, 
-           double moc_weight_wdr, double moc_weight_ic, int moc_len_integ,
+           double moc_weight_wdr, double moc_weight_ic, double moc_width_wdr,
            double **controlout, double **c1out, double **c2out, double **ihcout, 
            double **expout_hsr, double **sout1_hsr, double **sout2_hsr, double **synout_hsr,
            double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
@@ -663,28 +665,26 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
             ictmp = tdres * (ic_amp*ic_e_tmp[c][n] - (ic_amp*ic_inh)*ic_i_tmp[c][n]);
             icout[c][n] = hw_rectify(ictmp);
 
-            /* Lowpass filter LSR and IC responses to start generating MOC signals */
+            /* Lowpass filter LSR and IC responses to generate WDR-MOC and IC-MOC rates */
             filter_lowpass_iir(anrateout_lsr[c], n, moc_d, mocwdr[c]);
             filter_lowpass_iir(icout[c], n, moc_d, mocic[c]);
 
-            /* Create final gain value incrementally */
+            /* Generate gain value (in [0, 1]) for next sample */
+            /* To generate the gain value, we begin by initializing gain_combined at cohc */ 
             gain_combined = cohc; 
 
-            /* Incorporate IC contribution into gain */
+            /* Next, we incorporate the contribution of the IC-MOC path by multiplying
+            gain_combined with the current value of the IC-MOC rate passed through the MOC
+            nonlinearity */
             gain_combined = gain_combined * 
                 moc_nonlinearity(moc_weight_ic * mocic[c][n], moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic);
 
-            /* Determine how many channels we have available to contribute WDR gain */
-            // n_chan_incl = 0;
-            // for (int subc = 0; subc < n_chan; subc++) {
-            //     if (abs(c-subc) <= moc_len_integ) {
-            //         n_chan_incl += 1;
-            //     }
-            // }
-
-            /* Incorporate WDR contribution into gain */
+            /* Finally, we incorporate the contribution of the WDR-MOC path by multiplying
+            gain_combined with the current value of the WDR-MOC rate passed through the MOC
+            nonlinearity from each channel that falls within the range of the CF specified 
+            by moc_width_wdr */
             for (int subc = 0; subc < n_chan; subc++) {
-                if (abs(c-subc) <= moc_len_integ) {
+                if (fabs(log2(cf[c]) - log2(cf[subc])) <= (moc_width_wdr/2)) {
                     gain_combined = gain_combined * 
                         moc_nonlinearity(moc_weight_wdr * mocwdr[subc][n], moc_beta_wdr, moc_offset_wdr, moc_maxrate_wdr, moc_minrate_wdr);
                 }
