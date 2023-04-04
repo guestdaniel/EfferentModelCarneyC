@@ -551,6 +551,12 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     double gain_ic = 0.0;
     double gain_wdr = 0.0;
     int n_chan_incl = 0;
+    double n_cf_per_oct = 0.0; 
+    if (n_chan == 1) {
+        n_cf_per_oct = 1.0;
+    } else {
+        n_cf_per_oct = n_chan/(log2(cf[n_chan-1]) - log2(cf[0]));
+    }
 
     /* Calculate middle-ear output */
     middle_ear(px, tdres, totalstim, species, meout);
@@ -691,6 +697,7 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
                                          moc_offset_wdr, moc_maxrate_wdr, moc_minrate_wdr);
                 }
             }
+            gain_wdr = pow(gain_wdr, 1/n_cf_per_oct);
 
             /* Store final gain result, which is cohc * gain_wdr * gain_ic */
             gain[c][n] = cohc * gain_wdr * gain_ic;
