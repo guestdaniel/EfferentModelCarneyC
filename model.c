@@ -548,7 +548,8 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     /* Calculate variables for the MOC stage */
     double nyquist = (1/tdres)/2;
     double moc_d = exp(-TWOPI * (moc_cutoff/nyquist));
-    double gain_combined = 0.0;
+    double gain_ic = 0.0;
+    double gain_wdr = 0.0;
     int n_chan_incl = 0;
 
     /* Calculate middle-ear output */
@@ -669,29 +670,30 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
             filter_lowpass_iir(anrateout_lsr[c], n, moc_d, mocwdr[c]);
             filter_lowpass_iir(icout[c], n, moc_d, mocic[c]);
 
-            /* Generate gain value (in [0, 1]) for next sample */
-            /* To generate the gain value, we begin by initializing gain_combined at cohc */ 
-            gain_combined = cohc; 
+            /* Below, we generate gain value (in [0, 1]) for next sample */
 
-            /* Next, we incorporate the contribution of the IC-MOC path by multiplying
-            gain_combined with the current value of the IC-MOC rate passed through the MOC
+            /* First, calculate IC-path contribution to gain-control signal */
+            /* To do so, we just pass the output of MOC-IC (mocic) through MOC input-output
             nonlinearity */
-            gain_combined = gain_combined * 
-                moc_nonlinearity(moc_weight_ic * mocic[c][n], moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic);
+            gain_ic = moc_nonlinearity(moc_weight_ic * mocic[c][n], moc_beta_ic, 
+                                       moc_offset_ic, moc_maxrate_ic, moc_minrate_ic);
 
-            /* Finally, we incorporate the contribution of the WDR-MOC path by multiplying
-            gain_combined with the current value of the WDR-MOC rate passed through the MOC
-            nonlinearity from each channel that falls within the range of the CF specified 
-            by moc_width_wdr */
+            /* Next, calculate WDR-path contribution to gain-control signal */
+            /* To do so, we initialize gain_wdr at 1.0. Then, for those channels with CFs
+            that are less than moc_width_wdr/2 octaves away from the current channel, we
+            pass MOC-WDR (mocwdr) outputs through the MOC input-output nonlinearity and
+            multiply the resulting gain values together with gain_wdr */
+            gain_wdr = 1.0;
             for (int subc = 0; subc < n_chan; subc++) {
                 if (fabs(log2(cf[c]) - log2(cf[subc])) <= (moc_width_wdr/2)) {
-                    gain_combined = gain_combined * 
-                        moc_nonlinearity(moc_weight_wdr * mocwdr[subc][n], moc_beta_wdr, moc_offset_wdr, moc_maxrate_wdr, moc_minrate_wdr);
+                    gain_wdr = gain_wdr * 
+                        moc_nonlinearity(moc_weight_wdr * mocwdr[subc][n], moc_beta_wdr, 
+                                         moc_offset_wdr, moc_maxrate_wdr, moc_minrate_wdr);
                 }
             }
 
-            /* Store final gain result*/
-            gain[c][n] = gain_combined;
+            /* Store final gain result, which is cohc * gain_wdr * gain_ic */
+            gain[c][n] = cohc * gain_wdr * gain_ic;
         }
     }
 
