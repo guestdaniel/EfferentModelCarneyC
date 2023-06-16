@@ -1,5 +1,5 @@
  /*
-  This is v4.1 of the code for subcortical auditory model model of:
+  This is v4.2 of the code for subcortical auditory model model of:
 
   Guest, D. R., ..., and Carney, L. H. (202x). ...
 
@@ -71,7 +71,8 @@
  */
 void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums_lsr, 
                             double *cf, int n_chan, double tdres, int totalstim, double cohc, 
-                            double cihc, int species, double ic_tau_e, double ic_tau_i, 
+                            double cihc, int species, int fastmode,  
+                            double ic_tau_e, double ic_tau_i, 
                             double ic_delay, double ic_amp, double ic_inh, 
                             double moc_beta_wdr, double moc_offset_wdr, double moc_beta_ic, 
                             double moc_offset_ic, double moc_weight_wdr, 
@@ -82,6 +83,7 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
     /* TODO Migrate these declarations to a header file */
     void model(double *, double **, double **, double *, int, 
            double, int, double, double, int, double, 
+           int, int, 
            double, double, double, double, double,
            double, double, double, double, double,
            double, 
@@ -117,9 +119,24 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
         mocic[i] = (double*) calloc(totalstim, sizeof(double));
     }
 
+    /* Handle fastmode switch 
+        If fastmode is true, we disable fast power law and set power-law memory to maximum of 
+        5000 samples. Otherwise, we enable fast power law and set power-law memory to 
+        effectively infinite length (999999999 samples) 
+    */
+    int powerlaw_include_fast;
+    int powerlaw_len_memory;
+    if (fastmode) {
+        powerlaw_include_fast = 0;
+        powerlaw_len_memory = 4000;
+    } else {
+        powerlaw_include_fast = 1;
+        powerlaw_len_memory = 999999999;
+    }
+
     /* Call the main model function */
     model(px, randNums_hsr, randNums_lsr, cf, n_chan, tdres, totalstim, cohc, cihc, species,
-          100.0, 0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6, ic_tau_e, ic_tau_i, ic_delay, ic_amp,
+          100.0, powerlaw_include_fast, powerlaw_len_memory, 0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6, ic_tau_e, ic_tau_i, ic_delay, ic_amp,
           ic_inh, 0.2, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0, moc_beta_ic, moc_offset_ic, 
           0.0, 1.0, moc_weight_wdr, moc_weight_ic, moc_width_wdr, controlout, c1out, c2out,
           ihcout, expout_hsr, sout1_hsr, sout2_hsr, synout_hsr, expout_lsr, sout1_lsr, 
@@ -202,6 +219,10 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
  * @param [in] cihc Scalar in [0, 1] controlling the output of the inner hair cells
  * @param [in] species Integer indicating which species to simulate (1==cat, 2=human[shera],
  * 3==human[glasberg])
+ * @param [in] powerlaw_include_fast Integer indicating whether to include or exclude the
+ * fast power law adaptation stage in the auditory-nerve model
+ * @param [in] powerlaw_len_memory Integer determining the length of the "memory" of the
+ * power-law adpatation stage in the auditory-nerve model
  * @param [in] cn_tau_e (s) Excitatory time constant for SFIE cochlear nucleus stage,
  * reasonable values are in the range of [0.5e-3, 8e-3], default value is 0.5e-3
  * @param [in] cn_tau_i (s) Inhibitory time constant for SFIE cochlear nucleus stage,
@@ -294,11 +315,12 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
  */
 void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf, int n_chan, 
            double tdres, int totalstim, double cohc, double cihc, int species, double spont, 
+           int powerlaw_include_fast, int powerlaw_len_memory,
            double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
            double ic_tau_e, double ic_tau_i, double ic_delay, double ic_amp, double ic_inh,
-           double moc_cutoff, 
-           double moc_beta_wdr, double moc_offset_wdr, double moc_minrate_wdr, double moc_maxrate_wdr, 
-           double moc_beta_ic, double moc_offset_ic, double moc_minrate_ic, double moc_maxrate_ic, 
+           double moc_cutoff, double moc_beta_wdr, double moc_offset_wdr, 
+           double moc_minrate_wdr, double moc_maxrate_wdr, double moc_beta_ic, 
+           double moc_offset_ic, double moc_minrate_ic, double moc_maxrate_ic, 
            double moc_weight_wdr, double moc_weight_ic, double moc_width_wdr,
            double **controlout, double **c1out, double **c2out, double **ihcout, 
            double **expout_hsr, double **sout1_hsr, double **sout2_hsr, double **synout_hsr,
@@ -334,7 +356,7 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
                                    double, double, double, double *, double *, double *,
                                    double *);
     void apply_powerlaw_adaptation(double *, double *, double *, double *, int, int, double,
-                                     double, double, double, double, double *, double *);
+                                     double, double, double, double, double *, double *, int);
     void filter_lowpass_iir(double *, int, double, double *);
     double moc_nonlinearity(double, double, double, double, double);
 
@@ -642,8 +664,8 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
 
                 /* Apply power-law adaptation */
                 apply_powerlaw_adaptation(expout[t][c], randNums[t][c], &I1[t][c], 
-                                          &I2[t][c], n, 5000, alpha1, beta1, alpha2, beta2, tdres,
-                                          sout1[t][c], sout2[t][c]);
+                                          &I2[t][c], n, powerlaw_len_memory, alpha1, beta1, alpha2, beta2, tdres,
+                                          sout1[t][c], sout2[t][c], powerlaw_include_fast);
                 synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
 
                 /* Compute instantaneous rate from synapse output */

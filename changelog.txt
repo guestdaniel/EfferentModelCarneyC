@@ -1,3 +1,11 @@
+4.2
+  - Added arguments to control "fastmode" hacks. In the main model function, 
+    powerlaw_include_fast determines whether the fast power-law adaptation is included in
+    the model, and powerlaw_len_memory allows the user to limit the maximum memory length
+    of the power-law adaptation (in samples). In the wrapper function designed for use
+    with mex, we simply expose a fastmode switch that either runs the model without any
+    hacks (fastmode==0) or runs the model with the fast power law disabled and a maximum
+    power-law memory length of 5000 samples (fastmode==1)
 4.1
   - Modified MOC gain control stage in several ways
   - Final gain value for each sample, which is in the range [0, 1], is now computed as the 

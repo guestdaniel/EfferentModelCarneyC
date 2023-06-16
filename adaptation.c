@@ -213,14 +213,18 @@ void apply_ws1988_adaptation(double *x, int n, double synstrength, double synslo
  * @param sout2 Output vector for path #2
  */
 void apply_powerlaw_adaptation(double *x, double *randNums, double *I1, double *I2, int n,
-                               int len_max,
-                               double alpha1, double beta1, double alpha2, double beta2, 
-                               double tdres, double *sout1, double *sout2) {
+                               int len_max, double alpha1, double beta1, double alpha2, 
+                               double beta2, double tdres, double *sout1, double *sout2, 
+                               int include_fast) {
     sout1[n]  = __max(0, x[n] + randNums[n] - alpha1*(*I1));
-    // sout2[n] = __max(0, x[n] - alpha2*(*I2));
+    if (include_fast){
+        sout2[n] = __max(0, x[n] - alpha2*(*I2));
+    }
     (*I1) = 0.0; (*I2) = 0.0;
     for (int j = __max(0, n-len_max); j < n+1; ++j) {
         (*I1) += (sout1[j])*tdres/((n-j)*tdres + beta1);
-        // (*I2) += (sout2[j])*tdres/((n-j)*tdres + beta2);
+        if (include_fast) {
+            (*I2) += (sout2[j])*tdres/((n-j)*tdres + beta2);
+        }
     }
 }
