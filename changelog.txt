@@ -1,3 +1,5 @@
+4.3
+  - Fixed bug related to calculation of MOC lowpass filter parameters
 4.2
   - Added arguments to control "fastmode" hacks. In the main model function, 
     powerlaw_include_fast determines whether the fast power-law adaptation is included in
