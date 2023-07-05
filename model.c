@@ -160,22 +160,24 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
  * the periphery model of Zilany, Bruce, and Carney (2014) and a new brainstem and midbrain
  * model described in [[cite]].
  *
- * Arguments to the model function are structured in the following way and order:
- * - Inputs are passed as pointers to arrays or matrices of doubles
- * - Parameters are passed as doubles, integers, and arrays of doubles. These parameters
- *   govern the behavior of the model.
+ * Arguments to the model function are structured and ordered in the following way:
+ * - Inputs are passed as pointers to arrays or matrices of double-precision floating-point
+ *   numbers
+ * - Parameters are next passed as doubles, integers, and pointers to arrays of doubles.
+ *   These parameters govern the behavior of the model.
  * - Outputs are passed as pointers to matrices of doubles. These matrices are modified
- *   in-place by the model function (i.e., changes will be visible to the caller)
+ *   in-place by the model function (i.e., changes will be visible to the caller) and are
+ *   treated as "returns"
  *
  * Below, the arguments of the model function are described in more detail. For each
  * argument, information is presented in the following format:
  *
  *     @param [in/out] name (N, M) (unit)
  *
- * ... where [in/out] indicates whether the argument is treated as an input ([in]) or an
- * output ([out]), name is the name of the argument in the model code, (N, M) indicates the
- * size (if a vector or a matrix), and (unit) indicates the unit of the argument (e.g., Hz)
- * if it has a unit.  
+ * ... where [in/out] indicates whether the argument is treated as an input (i.e., [in]) or
+ * an output (i.e., [out]), name is the name of the argument in the model code, (N, M)
+ * indicates the size (if a vector or a matrix), and (unit) indicates the unit of the
+ * argument (e.g., Hz) if it has a unit.  
  *
  * In all cases, matrices should have their first dimension equal in length to the number of
  * simulated channels (n_chan) and their second dimension equal to the number of simulated
@@ -191,19 +193,25 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
  *
  * @param [in] px (totalstim, ) (Pa) Vector containing sound-pressure waveform
  * @param [in] randNums_hsr (n_chan, totalstim) Matrix of fractional Gaussian noise for the
- * high-spontaneous-rate signal path, see 2014 paper for details on how this noise should be
- * synthesized 
+ * high-spontaneous-rate signal path, see 2014 paper above for details on how this noise
+ * should be synthesized 
  * @param [in] randNums_lsr (n_chan, totalstim) Matrix of fractional Gaussian noise for the
- * low-spontaneous-rate signal path, see 2014 paper for details on how this noise should be
- * synthesized 
+ * low-spontaneous-rate signal path, see 2014 paper above for details on how this noise
+ * should be synthesized 
  * @param [in] cf (n_chan, ) (Hz) Vector containing characteristic frequencies for each
- * channel. CFs should be within the range of [X, Y] for cats and [X, Y] for humans
+ * channel. CFs should be within the range of [[vals]] for cats and [[vals]] for humans
  * @param [in] tdres (s) Sample time resolution, i.e., reciprocal of the sampling rate.
  * Suitable sampling rates are ~100 kHz for human simulations and 200 kHz for cat
  * simulations.
  * @param [in] totalstim Number of samples in the simulation
- * @param [in] cohc Scalar in [0, 1] controlling the maximum amount of cochlear gain
- * @param [in] cihc Scalar in [0, 1] controlling the output of the inner hair cells
+ * @param [in] cohc Scalar in [0, 1] controlling the "gain factor", which enters into the
+ * equations determining how to set the cochlear filter time constants and (therefore) the
+ * cochlear gain. A value of 0 makes the model fully "hearing-impaired" and efferent gain
+ * control will have no impact on responses. A value of 1 with the efferent gain control
+ * disabled results in "normal-hearing" responses designed to emulate physiological
+ * auditory-nerve data.
+ * @param [in] cihc Scalar in [0, 1] controlling the output amplitude of the inner hair
+ * cells
  * @param [in] species Integer indicating which species to simulate (1==cat, 2=human[shera],
  * 3==human[glasberg])
  * @param [in] powerlaw_include_fast Integer indicating whether to include or exclude the
@@ -234,7 +242,7 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
  * values are in the range of [0.5, 2.0], default value is 0.9
  * @param [in] moc_cutoff (Hz) Cutoff value for the simple IIR lowpass filter that is used
  * to lowpass filter MOC input signals before applying the MOC nonlinearity, default value
- * is 0.2 Hz
+ * is 0.64 Hz
  * @param [in] moc_beta_wdr Control parameter in the WDR-MOC nonlinearity, governs the slope
  * of the nonlinearity such that smaller values yield more gradual slopes between MOC rate
  * and MOC output gain while larger values yield sharper slopes between MOC rate and MOC
@@ -264,39 +272,40 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
  * through the IC-MOC nonlinearity and converted into a gain value. Setting this value to
  * 0.0 disables IC-driven gain control, default is 1.0.
  * @param [in] moc_width_wdr (oct) Range of CFs over which WDR-MOC gain control signal from
- * a single channel is sent to OHCs. For example, if moc_width_wdr is set to 1.0, then
- * for a given CF, the WDR-MOC gain control signal for that CF will be applied to the
- * total gain of channels within the range of [-1/2, 1/2] octaves around CF.
+ * a single channel is sent to OHCs. For example, if moc_width_wdr is set to 1.0, then for a
+ * given CF, the WDR-MOC gain control signal for that CF will be applied to the total gain
+ * of channels within the range of [-1/2, 1/2] octaves around CF.
  * @param [out] controlout (n_chan, totalstim) Matrix to store output of control-path filter
  * @param [out] c1out (n_chan, totalstim) Matrix to store output of signal-path C1 filter
  * @param [out] c2out (n_chan, totalstim) Matrix to store output of signal-path C2 filter
  * @param [out] ihcout (n_chan, totalstim) Matrix to store output of inner hair cell
- * @param [out] expout_hsr (n_chan, totalstim) Matrix to store output of exponential adaptation
- * stage for high-spontaneous-rate auditory-nerve fiber
- * @param [out] sout1_hsr (n_chan, totalstim) Matrix to store output of slow power-law adaptation
- * stage for high-spontaneousrate auditory-nerve fiber
- * @param [out] sout2_hsr (n_chan, totalstim) Matrix to store output of fast power-law adaptation
- * stage for high-spontaneous-rate auditory-nerve fiber
+ * @param [out] expout_hsr (n_chan, totalstim) Matrix to store output of exponential
+ * adaptation stage for high-spontaneous-rate auditory-nerve fiber
+ * @param [out] sout1_hsr (n_chan, totalstim) Matrix to store output of slow power-law
+ * adaptation stage for high-spontaneousrate auditory-nerve fiber
+ * @param [out] sout2_hsr (n_chan, totalstim) Matrix to store output of fast power-law
+ * adaptation stage for high-spontaneous-rate auditory-nerve fiber
  * @param [out] synout_hsr (n_chan, totalstim) Matrix to store output of synapse for
  * high-spontaneous-rate auditory-nerve fiber
- * @param [out] expout_lsr (n_chan, totalstim) Matrix to store output of exponential adaptation
- * stage for low-spontaneous-rate auditory-nerve fiber
- * @param [out] sout1_lsr (n_chan, totalstim) Matrix to store output of slow power-law adaptation
- * stage for low-spontaneousrate auditory-nerve fiber
- * @param [out] sout2_lsr (n_chan, totalstim) Matrix to store output of fast power-law adaptation
- * stage for low-spontaneous-rate auditory-nerve fiber
+ * @param [out] expout_lsr (n_chan, totalstim) Matrix to store output of exponential
+ * adaptation stage for low-spontaneous-rate auditory-nerve fiber
+ * @param [out] sout1_lsr (n_chan, totalstim) Matrix to store output of slow power-law
+ * adaptation stage for low-spontaneousrate auditory-nerve fiber
+ * @param [out] sout2_lsr (n_chan, totalstim) Matrix to store output of fast power-law
+ * adaptation stage for low-spontaneous-rate auditory-nerve fiber
  * @param [out] synout_lsr (n_chan, totalstim) Matrix to store output of synapse for
  * low-spontaneous-rate auditory-nerve fiber
- * @param [out] anrateout_lsr (n_chan, totalstim) (sp/s) Matrix to store output instantaneous
- * firing rate of low-spontaneous-rate auditory-nerve fiber
- * @param [out] anrateout_hsr (n_chan, totalstim) (sp/s) Matrix to store output instantaneous
- * firing rate of high-spontaneous-rate auditory-nerve fiber
- * @param [out] cnout (n_chan, totalstim) (sp/s) Matrix to store output of cochlear nucleus stage
- * @param [out] icout (n_chan, totalstim) (sp/s) Matrix to store output of inferior colliculus
- * stage totalstim)
- * @param [out] mocwdr (n_chan, totalstim) (sp/s) Matrix to store the WDR-MOC rates, which are 
- * lowpass-filtered LSR rates
- * @param [out] mocic (n_chan, totalstim) (sp/s) Matrix to store the IC-MOC rates, which are 
+ * @param [out] anrateout_lsr (n_chan, totalstim) (sp/s) Matrix to store output
+ * instantaneous firing rate of low-spontaneous-rate auditory-nerve fiber
+ * @param [out] anrateout_hsr (n_chan, totalstim) (sp/s) Matrix to store output
+ * instantaneous firing rate of high-spontaneous-rate auditory-nerve fiber
+ * @param [out] cnout (n_chan, totalstim) (sp/s) Matrix to store output of cochlear nucleus
+ * stage
+ * @param [out] icout (n_chan, totalstim) (sp/s) Matrix to store output of inferior
+ * colliculus stage totalstim)
+ * @param [out] mocwdr (n_chan, totalstim) (sp/s) Matrix to store the WDR-MOC rates, which
+ * are lowpass-filtered LSR rates
+ * @param [out] mocic (n_chan, totalstim) (sp/s) Matrix to store the IC-MOC rates, which are
  * lowpass-filtered IC rates
  * @param [out] gain (n_chan, totalstim) Matrix to store time-varying "gain" value in [0, 1]
  */
@@ -314,7 +323,7 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
            double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
            double **anrateout_hsr, double **anrateout_lsr, double **cnout, double **icout,
            double **mocwdr, double **mocic, double **gain) {
-    /* Declare variables that allow us to easily reference LSR/HSR paths */
+    /* Declare pointers to store convenient references to LSR/HSR pathway stages */
     double** randNums[2] = {randNums_hsr, randNums_lsr};
     double** expout[2] = {expout_hsr, expout_lsr};
     double** sout1[2] = {sout1_hsr, sout1_lsr};
@@ -322,11 +331,11 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     double** synout[2] = {synout_hsr, synout_lsr};
     double** anrateout[2] = {anrateout_hsr, anrateout_lsr};
 
-    /* Declare variables for the BM/IHC stage to temporarily store outputs */
+    /* Declare temporary variables for the BM/IHC stage outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, 
            c2vihctmp, me_curr;
 
-    /* Declare parameters in the BM/IHC stage (all vary by channel) */
+    /* Declare parameters in the BM/IHC stage (all varying by channel) */
     double bmplace[n_chan], centerfreq[n_chan], Taumin[n_chan], Taumax[n_chan], 
            bmTaumin[n_chan], bmTaumax[n_chan], ratiobm[n_chan], bmTaubm[n_chan], 
            TauWBMax[n_chan], TauWBMin[n_chan], tauwb[n_chan], wbgain[n_chan],
