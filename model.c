@@ -1,5 +1,5 @@
  /*
-  This is v4.2 of the code for subcortical auditory model model of:
+  This is v4.3 of the code for subcortical auditory model model of:
 
   Guest, D. R., ..., and Carney, L. H. (202x). ...
 
@@ -45,6 +45,7 @@
 #include <time.h>
 
 #include "complex.hpp"
+#include "model.h"
 
 #define MAXSPIKES 1000000
 #ifndef TWOPI
@@ -79,24 +80,7 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
                             double moc_weight_ic, double moc_width_wdr, double **ihcout, 
                             double **anrateout_hsr, double **anrateout_lsr, double **icout,
                             double **gain) {
-    /* First, declare functions that will be used in this function */
-    /* TODO Migrate these declarations to a header file */
-    void model(double *, double **, double **, double *, int, 
-           double, int, double, double, int, double, 
-           int, int, 
-           double, double, double, double, double,
-           double, double, double, double, double,
-           double, 
-           double, double, double, double, 
-           double, double, double, double, 
-           double, double, double,
-           double **, double **, double **, double **, 
-           double **, double **, double **, double **,
-           double **, double **, double **, double **,
-           double **, double **, double **, double **,
-           double **, double **, double **);
-
-    /* Next, allocate memory for all of the extra output matrices */
+    /* First, allocate memory for all of the extra output matrices */
     double *controlout[n_chan], *c1out[n_chan], *c2out[n_chan], 
         *expout_hsr[n_chan], *sout1_hsr[n_chan], *sout2_hsr[n_chan], *synout_hsr[n_chan], 
         *expout_lsr[n_chan], *sout1_lsr[n_chan], *sout2_lsr[n_chan], *synout_lsr[n_chan],
@@ -119,10 +103,9 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
         mocic[i] = (double*) calloc(totalstim, sizeof(double));
     }
 
-    /* Handle fastmode switch 
-        If fastmode is true, we disable fast power law and set power-law memory to maximum of 
-        5000 samples. Otherwise, we enable fast power law and set power-law memory to 
-        effectively infinite length (999999999 samples) 
+    /* Handle fastmode switch: If fastmode is true, we disable fast power law and set
+        power-law memory to maximum of 5000 samples. Otherwise, we enable fast power law and
+        set power-law memory to effectively infinite length (999999999 samples) 
     */
     int powerlaw_include_fast;
     int powerlaw_len_memory;
@@ -135,13 +118,18 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
     }
 
     /* Call the main model function */
-    model(px, randNums_hsr, randNums_lsr, cf, n_chan, tdres, totalstim, cohc, cihc, species,
-          100.0, powerlaw_include_fast, powerlaw_len_memory, 0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6, ic_tau_e, ic_tau_i, ic_delay, ic_amp,
-          ic_inh, 0.2, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0, moc_beta_ic, moc_offset_ic, 
-          0.0, 1.0, moc_weight_wdr, moc_weight_ic, moc_width_wdr, controlout, c1out, c2out,
-          ihcout, expout_hsr, sout1_hsr, sout2_hsr, synout_hsr, expout_lsr, sout1_lsr, 
-          sout2_lsr, synout_lsr, anrateout_hsr, anrateout_lsr, cnout, icout, mocwdr, mocic,
-          gain);
+    model(px, randNums_hsr, randNums_lsr, cf,                    // principal inputs
+          n_chan, tdres, totalstim, cohc, cihc, species, 100.0,  // IHC/AN parameters
+          powerlaw_include_fast, powerlaw_len_memory,            // powerlaw parameters
+          0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6,                      // CN parameters
+          ic_tau_e, ic_tau_i, ic_delay, ic_amp, ic_inh,          // IC parameters
+          0.2, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0,           // MOC parameters
+          moc_beta_ic, moc_offset_ic, 0.0, 1.0, moc_weight_wdr,  // ...
+          moc_weight_ic, moc_width_wdr,                          // ...
+          controlout, c1out, c2out, ihcout, expout_hsr,          // output matrices
+          sout1_hsr, sout2_hsr, synout_hsr, expout_lsr,          // ...
+          sout1_lsr, sout2_lsr, synout_lsr, anrateout_hsr,       // ...
+          anrateout_lsr, cnout, icout, mocwdr, mocic, gain);     // ...
 
     /* Finally, free allocated memory */
     for (int i = 0; i < n_chan; i++) {
@@ -159,7 +147,6 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
         free(cnout[i]);
         free(mocwdr[i]);
         free(mocic[i]);
-
     }
 }
 
@@ -327,39 +314,6 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
            double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
            double **anrateout_hsr, double **anrateout_lsr, double **cnout, double **icout,
            double **mocwdr, double **mocic, double **gain) {
-    /* Declare functions used in model */
-	void middle_ear(double *, double, int, int, double *);
-    void Get_tauwb(int, double *, int, int, double *, double *);
-	void Get_taubm(int, double *, int, double *, double *, double *, double *);
-    double gain_groupdelay(double, double, double, double, int *);
-    double WbGammaTone(double, double, double, int, double, double, int, double *, 
-                       COMPLEX *, COMPLEX *);
-	double Boltzman(double, double, double, double, double);
-    double NLafterohc(double, double, double, double);
-    double OhcLowPass(double, double, double, int, double, int, double *, double *);
-	double C1ChirpFilt(double, double,double, int, double, double, double *, double *, 
-                       double **, double **);
-	double C2ChirpFilt(double, double,double, int, double, double, double *, double *, 
-                       double **, double **);
-    double NLogarithm(double, double, double, double);
-    double IhcLowPass(double, double, double, int, double, int, double *, double *);
-    double delay_cat(double);
-    double delay_human(double);
-    void get_alpha_norm(double, double, double, double *, double *);
-    void filter_alpha(double *, int, double, double *, double *, double *);
-    double hw_rectify(double);
-    void delay_signal(double *, int, int, double*);
-    void initialize_ws1988_adaptation(double, double, double *, double *, double *,
-                                        double *, double *, double *, double *, double *,
-                                        double *);
-    void apply_ws1988_adaptation(double *, int, double, double, double, double, double,
-                                   double, double, double, double *, double *, double *,
-                                   double *);
-    void apply_powerlaw_adaptation(double *, double *, double *, double *, int, int, double,
-                                     double, double, double, double, double *, double *, int);
-    void filter_lowpass_iir(double *, int, double, double *);
-    double moc_nonlinearity(double, double, double, double, double);
-
     /* Declare variables that allow us to easily reference LSR/HSR paths */
     double** randNums[2] = {randNums_hsr, randNums_lsr};
     double** expout[2] = {expout_hsr, expout_lsr};
@@ -783,8 +737,6 @@ double hw_rectify(double x) {
  * @param len_delay Length of delay in samples
  * @param output Vector containing output signal
  * 
- * @note Standard warnings apply --- don't pass indices that exceed the lengths of the 
- *   arrays! There's no manual bounds checks!!!
  */
 void delay_signal(double *input, int n, int len_delay, double *output) {
     if ((n - len_delay) < 0) {
