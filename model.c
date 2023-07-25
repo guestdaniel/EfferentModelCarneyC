@@ -120,7 +120,7 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
     /* Call the main model function */
     model(px, randNums_hsr, randNums_lsr, cf,                    // principal inputs
           n_chan, tdres, totalstim, cohc, cihc, species, 100.0,  // IHC/AN parameters
-          powerlaw_include_fast, powerlaw_len_memory,            // powerlaw parameters
+          1,                                                     // powerlaw parameters
           0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6,                      // CN parameters
           ic_tau_e, ic_tau_i, ic_delay, ic_amp, ic_inh,          // IC parameters
           0.2, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0,           // MOC parameters
@@ -311,7 +311,7 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
  */
 void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf, int n_chan, 
            double tdres, int totalstim, double cohc, double cihc, int species, double spont, 
-           int powerlaw_include_fast, int powerlaw_len_memory,
+           int powerlaw_mode,
            double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
            double ic_tau_e, double ic_tau_i, double ic_delay, double ic_amp, double ic_inh,
            double moc_cutoff, double moc_beta_wdr, double moc_offset_wdr, 
@@ -442,11 +442,18 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
 
     /* Declare other variables used in the AN stage (all vary by channel/fiber type) */
     int n_fiber_type = 2;  // HSR==0, LSR==1
+    int n_process = 200;  // how many exponential processes used to approximate PLA
+    double tau_short = 5.7811e-4;  // shortest time constant used in exponential approx. of PLA
+    double tau_long = 7.8475e3;    // longest time constant used in exponential approx. of PLA 
+    double coef_iir = 0.07669;     // coefficient used in IIR PLA approximation
     double sponts[2] = {100.0, 0.1}; 
     double synstrength[n_fiber_type][n_chan], synslope[n_fiber_type][n_chan], 
            VI[n_fiber_type][n_chan], PG[n_fiber_type][n_chan], CG[n_fiber_type][n_chan],
            VL[n_fiber_type][n_chan], PL[n_fiber_type][n_chan], I1[n_fiber_type][n_chan], 
-           I2[n_fiber_type][n_chan], CI[n_fiber_type][n_chan], CL[n_fiber_type][n_chan], 
+           I2[n_fiber_type][n_chan], 
+           E1[n_fiber_type][n_chan][n_process], E2[n_fiber_type][n_chan][n_process], 
+           D1[n_fiber_type][n_chan][n_process], D2[n_fiber_type][n_chan][n_process],
+           CI[n_fiber_type][n_chan], CL[n_fiber_type][n_chan], 
            CIlast[n_fiber_type][n_chan];
 
     /* Loop over channels to calculate parameters, coefficients, etc. for each channel */
@@ -479,23 +486,41 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
         delay_latency[c] = delay_cat(cf[c]);  /* Delay time in s */
         len_delay_latency[c] = __max(0, (int) ceil(delay_latency[c]/tdres));  /* Delay time in samples*/
 
-        /* Set parameters for power-law adaptation */
-        alpha1 = 2.5e-6*100e3; 
-        beta1  = 5e-4; 
-        alpha2 = 1e-2*100e3; 
-        beta2  = 1e-1;
-        for (int t = 0; t < n_fiber_type; t++) {
-            for (int i = 0; i < n_chan; i++) {
-                I1[t][i] = 0.0;
-                I2[t][i] = 0.0;
-            }
-        }
-
         /* Set parameters for double-exponential adaptation (based on fiber type / spont) */
         for (int t = 0; t < n_fiber_type; t++) {
             initialize_ws1988_adaptation(cf[c], sponts[t], &synstrength[t][c], 
                                          &synslope[t][c], &VI[t][c], &PG[t][c], &VL[t][c], 
                                          &PL[t][c], &CG[t][c], &CI[t][c], &CL[t][c]);
+        }
+    }
+
+    /* Set parameters for power-law adaptation */
+    alpha1 = 2.5e-6*100e3; 
+    beta1  = 5e-4; 
+    alpha2 = 1e-2*100e3; 
+    beta2  = 1e-1;
+    for (int t = 0; t < n_fiber_type; t++) {
+        for (int i = 0; i < n_chan; i++) {
+            I1[t][i] = 0.0;
+            I2[t][i] = 0.0;
+        }
+    }
+
+    /* Set parameters for approximate power-law adaptation */
+    double delta = (log(tau_long) - log(tau_short)) / (n_process - 1);
+    double tau_temp = 0.0;
+    for (int t = 0; t < n_fiber_type; t++) {
+        for (int i = 0; i < n_chan; i++) {
+            for (int p = 0; p < n_process; p++) {
+                // Initialize exponential process states at 0
+                E1[t][i][p] = 0.0;
+                E2[t][i][p] = 0.0;
+
+                // Determine time constant for this step, convert to decay coef and save
+                tau_temp = exp(log(tau_short) + delta * p);
+                D1[t][i][p] = exp(-(1/(1/tdres)) / tau_temp);
+                D2[t][i][p] = exp(-(1/(1/tdres)) / tau_temp);
+            }
         }
     }
 
@@ -625,9 +650,15 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
                                         expout[t][c]);
 
                 /* Apply power-law adaptation */
-                apply_powerlaw_adaptation(expout[t][c], randNums[t][c], &I1[t][c], 
-                                          &I2[t][c], n, powerlaw_len_memory, alpha1, beta1, alpha2, beta2, tdres,
-                                          sout1[t][c], sout2[t][c], powerlaw_include_fast);
+                if (powerlaw_mode == 1) {
+                    apply_powerlaw_adaptation(expout[t][c], randNums[t][c], &I1[t][c], 
+                                            &I2[t][c], n, alpha1, beta1, alpha2, beta2, tdres,
+                                            sout1[t][c], sout2[t][c]);
+                } else if (powerlaw_mode == 2) {
+                    apply_powerlaw_adaptation_iir(expout[t][c], randNums[t][c], &I1[t][c],
+                        &I2[t][c], E1[t][c], E2[t][c], D1[t][c], D2[t][c], n_process, n,
+                        coef_iir * alpha1, coef_iir * alpha2, tdres, sout1[t][c], sout2[t][c]);
+                }
                 synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
 
                 /* Compute instantaneous rate from synapse output */

@@ -196,14 +196,11 @@ void apply_ws1988_adaptation(double *x, int n, double synstrength, double synslo
  * 
  * Applies slow and fast powerlaw adaptation to signal.
  * 
- * Note - second power law was disabled for testing speed on 3/27/2023 D.R.G.
- * 
  * @param x Input data 
  * @param randNums Input fractional Gaussian noise
  * @param I1 Pointer to state variable for path #1
  * @param I2 Pointer to state variable for path #1
  * @param n Current sample index
- * @param len Maximum duration of "memory" in samples
  * @param alpha1
  * @param beta1
  * @param alpha2
@@ -213,18 +210,57 @@ void apply_ws1988_adaptation(double *x, int n, double synstrength, double synslo
  * @param sout2 Output vector for path #2
  */
 void apply_powerlaw_adaptation(double *x, double *randNums, double *I1, double *I2, int n,
-                               int len_max, double alpha1, double beta1, double alpha2, 
-                               double beta2, double tdres, double *sout1, double *sout2, 
-                               int include_fast) {
+                               double alpha1, double beta1, double alpha2, 
+                               double beta2, double tdres, double *sout1, double *sout2) {
     sout1[n]  = __max(0, x[n] + randNums[n] - alpha1*(*I1));
-    if (include_fast){
-        sout2[n] = __max(0, x[n] - alpha2*(*I2));
-    }
+//    sout2[n] = __max(0, x[n] - alpha2*(*I2));
     (*I1) = 0.0; (*I2) = 0.0;
-    for (int j = __max(0, n-len_max); j < n+1; ++j) {
+    for (int j = 0; j < n+1; ++j) {
         (*I1) += (sout1[j])*tdres/((n-j)*tdres + beta1);
-        if (include_fast) {
-            (*I2) += (sout2[j])*tdres/((n-j)*tdres + beta2);
+//        (*I2) += (sout2[j])*tdres/((n-j)*tdres + beta2);
+    }
+}
+
+/**
+ * apply_powerlaw_adaptation_iir
+ * 
+ * Applies slow and fast powerlaw adaptation to signal using fast IIR approximation
+ * 
+ * @param x Input data 
+ * @param randNums Input fractional Gaussian noise
+ * @param I1 Pointer to integrator value state variable for path #1
+ * @param I2 Pointer to integrator value state variable for path #2
+ * @param E1 Pointer to parallel exponential process state variables for path #1
+ * @param E2 Pointer to parallel exponential process state variables for path #2
+ * @param d Pointer to decay-coefficient vector, size (n_process, )
+ * @param n_process Number of parallel exponential processes used to approximate PLA
+ * @param n Current sample index
+ * @param alpha1
+ * @param alpha2
+ * @param tdres
+ * @param sout1 Output vector for path #1
+ * @param sout2 Output vector for path #2
+ */
+void apply_powerlaw_adaptation_iir(double *x, double *randNums, double *I1, double *I2, 
+                               double *E1, double *E2,
+                               double *D1, double *D2, int n_process, int n,
+                               double alpha1, double alpha2, 
+                               double tdres, double *sout1, double *sout2) {
+    // Apply power-law adaptation
+    sout1[n]  = __max(0, x[n] + randNums[n] - alpha1*(*I1));
+//    sout2[n] = __max(0, x[n] - alpha2*(*I2));
+
+    // Update values for I1/I2 based on approximation via parallel exponential processes
+    (*I1) = 0.0; (*I2) = 0.0;
+    for (int i = 0; i < n_process; i++) {
+        if (n == 0) {
+            E1[i] = (1-D1[i]) * sout1[n];
+ //           E2[i] = (1-D2[i]) * 1e-1 * x[n];
+        } else {
+            E1[i] = (1-D1[i]) * sout1[n] + D1[i] * E1[i];
+  //          E2[i] = (1-D2[i]) * 1e-1 * x[n] + D2[i] * E2[i];
         }
+        (*I1) += E1[i];
+   //     (*I2) += E2[i];
     }
 }
