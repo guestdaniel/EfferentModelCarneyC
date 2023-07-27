@@ -1,5 +1,5 @@
  /*
-  This is v4.3 of the code for subcortical auditory model model of:
+  This is v5.1 of the code for subcortical auditory model model of:
 
   Guest, D. R., ..., and Carney, L. H. (202x). ...
 
@@ -35,7 +35,7 @@
   any modified versions of this code.
 
   To compare this code to older model versions, please refer to changelog.txt and to the 
-  git commit history. 
+  Git commit history. 
 */
 
 #include <stdio.h>
@@ -315,20 +315,61 @@ void model_efferent_wrapper(double *px,
  * lowpass-filtered IC rates
  * @param [out] gain (n_chan, totalstim) Matrix to store time-varying "gain" value in [0, 1]
  */
-void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf, int n_chan, 
-           double tdres, int totalstim, double cohc, double cihc, int species, double spont, 
-           int powerlaw_mode,
-           double cn_tau_e, double cn_tau_i, double cn_delay, double cn_amp, double cn_inh,
-           double ic_tau_e, double ic_tau_i, double ic_delay, double ic_amp, double ic_inh,
-           double moc_cutoff, double moc_beta_wdr, double moc_offset_wdr, 
-           double moc_minrate_wdr, double moc_maxrate_wdr, double moc_beta_ic, 
-           double moc_offset_ic, double moc_minrate_ic, double moc_maxrate_ic, 
-           double moc_weight_wdr, double moc_weight_ic, double moc_width_wdr,
-           double **controlout, double **c1out, double **c2out, double **ihcout, 
-           double **expout_hsr, double **sout1_hsr, double **sout2_hsr, double **synout_hsr,
-           double **expout_lsr, double **sout1_lsr, double **sout2_lsr, double **synout_lsr,
-           double **anrateout_hsr, double **anrateout_lsr, double **cnout, double **icout,
-           double **mocwdr, double **mocic, double **gain) {
+void model(
+    double *px, 
+    double **randNums_hsr, 
+    double **randNums_lsr, 
+    double *cf, 
+    int n_chan, 
+    double tdres, 
+    int totalstim, 
+    double cohc, 
+    double cihc, 
+    int species, 
+    double spont, 
+    int powerlaw_mode,
+    double cn_tau_e, 
+    double cn_tau_i, 
+    double cn_delay, 
+    double cn_amp, 
+    double cn_inh,
+    double ic_tau_e, 
+    double ic_tau_i, 
+    double ic_delay, 
+    double ic_amp, 
+    double ic_inh,
+    double moc_cutoff, 
+    double moc_beta_wdr, 
+    double moc_offset_wdr, 
+    double moc_minrate_wdr, 
+    double moc_maxrate_wdr, 
+    double moc_beta_ic, 
+    double moc_offset_ic, 
+    double moc_minrate_ic, 
+    double moc_maxrate_ic, 
+    double moc_weight_wdr, 
+    double moc_weight_ic, 
+    double moc_width_wdr,
+    double **controlout, 
+    double **c1out, 
+    double **c2out, 
+    double **ihcout, 
+    double **expout_hsr, 
+    double **sout1_hsr, 
+    double **sout2_hsr, 
+    double **synout_hsr,
+    double **expout_lsr, 
+    double **sout1_lsr, 
+    double **sout2_lsr, 
+    double **synout_lsr,
+    double **anrateout_hsr, 
+    double **anrateout_lsr, 
+    double **cnout, 
+    double **icout,
+    double **mocwdr, 
+    double **mocic, 
+    double **gain
+) {
     /* Declare pointers to store convenient references to LSR/HSR pathway stages */
     double** randNums[2] = {randNums_hsr, randNums_lsr};
     double** expout[2] = {expout_hsr, expout_lsr};

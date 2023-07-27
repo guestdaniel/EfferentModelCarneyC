@@ -1,3 +1,14 @@
+5.1
+  - Added approximate power-law adaptation. This approximation is based on using many parallel 
+    exponential adaptation processes with a wide range of time constants in lieu of the 
+    true power-law adaptation. These processes can be implemented efficiently as 
+    small recursive filters (single-pole IIR lowpass) and result in a model that is in 
+    linear time with respect to input length, whereas the true power-law adaptation 
+    superlinear in time. The approximation includes 100 parallel processes each for the slow
+    and fast power-law stages, and the range of time constants was fit empirically to 
+    match approximate to true output waveforms for the power-law stages in response to 
+    brief pure tones at various frequencies (this procedure will be improved in the future
+    to give better fits to a wider range of stimuli).
 4.3
   - Fixed bug related to calculation of MOC lowpass filter parameters
 4.2
