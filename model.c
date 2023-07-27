@@ -492,12 +492,12 @@ void model(
 
     /* Declare variables used in PLA approximation system */
     int n_process = 100;             // how many exponential processes in approx for PLA
-    double coef_slow = 0.032652;     // scalar coefficient used in approx for sout1
-    double tau_short_slow = 6.052628e-4;  // short time constant used in approx for sout1
-    double tau_long_slow = 7.577686e2;   // long time constant used in approx for sout1
-    double coef_fast = 15.868406;    // scalar coefficient used in approx for sout1
-    double tau_short_fast = 5.448402e-2;  // short time constant used in approx for sout2
-    double tau_long_fast = 8.435318e-1;  // long time constant used in approx for sout2
+    double coef_slow = 0.031159;     // scalar coefficient used in approx for sout1
+    double tau_short_slow = 5.993231e-4;  // short time constant used in approx for sout1
+    double tau_long_slow = 4.391408e2;   // long time constant used in approx for sout1
+    double coef_fast = 52.383874;    // scalar coefficient used in approx for sout1
+    double tau_short_fast = 5.985333e-2;  // short time constant used in approx for sout2
+    double tau_long_fast = 5.195767e2;  // long time constant used in approx for sout2
 
     /* Declare other variables used in the AN stage (all vary by channel/fiber type) */
     int n_fiber_type = 2;  // HSR==0, LSR==1
