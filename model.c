@@ -70,16 +70,36 @@
  * parameter in the function signature below are provided in the docstring for the main
  * model function.
  */
-void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums_lsr, 
-                            double *cf, int n_chan, double tdres, int totalstim, double cohc, 
-                            double cihc, int species, int fastmode,  
-                            double ic_tau_e, double ic_tau_i, 
-                            double ic_delay, double ic_amp, double ic_inh, 
-                            double moc_beta_wdr, double moc_offset_wdr, double moc_beta_ic, 
-                            double moc_offset_ic, double moc_weight_wdr, 
-                            double moc_weight_ic, double moc_width_wdr, double **ihcout, 
-                            double **anrateout_hsr, double **anrateout_lsr, double **icout,
+void model_efferent_wrapper(double *px, 
+							double **randNums_hsr, 
+							double **randNums_lsr, 
+                            double *cf, 
+							int n_chan, 
+							double tdres, 
+							int totalstim, 
+							double cohc, 
+                            double cihc, 
+							int species,
+							int powerlaw_mode,
+                            double ic_tau_e, 
+							double ic_tau_i, 
+                            double ic_delay, 
+							double ic_amp, 
+							double ic_inh, 
+							double moc_cutoff,
+                            double moc_beta_wdr, 
+							double moc_offset_wdr, 
+							double moc_beta_ic, 
+                            double moc_offset_ic, 
+							double moc_weight_wdr, 
+                            double moc_weight_ic, 
+							double moc_width_wdr, 
+							double **ihcout, 
+                            double **anrateout_hsr, 
+							double **anrateout_lsr, 
+							double **icout,
                             double **gain) {
+
     /* First, allocate memory for all of the extra output matrices */
     double *controlout[n_chan], *c1out[n_chan], *c2out[n_chan], 
         *expout_hsr[n_chan], *sout1_hsr[n_chan], *sout2_hsr[n_chan], *synout_hsr[n_chan], 
@@ -103,27 +123,13 @@ void model_efferent_wrapper(double *px, double **randNums_hsr, double **randNums
         mocic[i] = (double*) calloc(totalstim, sizeof(double));
     }
 
-    /* Handle fastmode switch: If fastmode is true, we disable fast power law and set
-        power-law memory to maximum of 5000 samples. Otherwise, we enable fast power law and
-        set power-law memory to effectively infinite length (999999999 samples) 
-    */
-    int powerlaw_include_fast;
-    int powerlaw_len_memory;
-    if (fastmode) {
-        powerlaw_include_fast = 0;
-        powerlaw_len_memory = 4000;
-    } else {
-        powerlaw_include_fast = 1;
-        powerlaw_len_memory = 999999999;
-    }
-
     /* Call the main model function */
     model(px, randNums_hsr, randNums_lsr, cf,                    // principal inputs
           n_chan, tdres, totalstim, cohc, cihc, species, 100.0,  // IHC/AN parameters
-          1,                                                     // powerlaw parameters
+          powerlaw_mode,                                         // powerlaw parameters
           0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6,                      // CN parameters
           ic_tau_e, ic_tau_i, ic_delay, ic_amp, ic_inh,          // IC parameters
-          0.2, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0,           // MOC parameters
+          moc_cutoff, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0,    // MOC parameters
           moc_beta_ic, moc_offset_ic, 0.0, 1.0, moc_weight_wdr,  // ...
           moc_weight_ic, moc_width_wdr,                          // ...
           controlout, c1out, c2out, ihcout, expout_hsr,          // output matrices
@@ -438,14 +444,22 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     }
 
     /* Declare variables used in the AN stage that are fixed across channels or reused */
-    double alpha1, beta1, alpha2, beta2;
+    double alpha1 = 2.5e-6*100e3; 
+    double beta1  = 5e-4; 
+    double alpha2 = 1e-2*100e3; 
+    double beta2  = 1e-1;
+
+    /* Declare variables used in PLA approximation system */
+    int n_process = 100;             // how many exponential processes in approx for PLA
+    double coef_slow = 0.032652;     // scalar coefficient used in approx for sout1
+    double tau_short_slow = 6.052628e-4;  // short time constant used in approx for sout1
+    double tau_long_slow = 7.577686e2;   // long time constant used in approx for sout1
+    double coef_fast = 15.868406;    // scalar coefficient used in approx for sout1
+    double tau_short_fast = 5.448402e-2;  // short time constant used in approx for sout2
+    double tau_long_fast = 8.435318e-1;  // long time constant used in approx for sout2
 
     /* Declare other variables used in the AN stage (all vary by channel/fiber type) */
     int n_fiber_type = 2;  // HSR==0, LSR==1
-    int n_process = 200;  // how many exponential processes used to approximate PLA
-    double tau_short = 5.7811e-4;  // shortest time constant used in exponential approx. of PLA
-    double tau_long = 7.8475e3;    // longest time constant used in exponential approx. of PLA 
-    double coef_iir = 0.07669;     // coefficient used in IIR PLA approximation
     double sponts[2] = {100.0, 0.1}; 
     double synstrength[n_fiber_type][n_chan], synslope[n_fiber_type][n_chan], 
            VI[n_fiber_type][n_chan], PG[n_fiber_type][n_chan], CG[n_fiber_type][n_chan],
@@ -495,10 +509,6 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
     }
 
     /* Set parameters for power-law adaptation */
-    alpha1 = 2.5e-6*100e3; 
-    beta1  = 5e-4; 
-    alpha2 = 1e-2*100e3; 
-    beta2  = 1e-1;
     for (int t = 0; t < n_fiber_type; t++) {
         for (int i = 0; i < n_chan; i++) {
             I1[t][i] = 0.0;
@@ -506,19 +516,33 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
         }
     }
 
-    /* Set parameters for approximate power-law adaptation */
-    double delta = (log(tau_long) - log(tau_short)) / (n_process - 1);
+    /* Calculate parameters for approximate power-law adaptation (sout1) */
+    double delta = (log(tau_long_slow) - log(tau_short_slow)) / (n_process - 1);
     double tau_temp = 0.0;
     for (int t = 0; t < n_fiber_type; t++) {
         for (int i = 0; i < n_chan; i++) {
             for (int p = 0; p < n_process; p++) {
                 // Initialize exponential process states at 0
                 E1[t][i][p] = 0.0;
+
+                // Determine time constant for this step, convert to decay coef and save
+                tau_temp = exp(log(tau_short_slow) + delta * p);
+                D1[t][i][p] = exp(-(1/(1/tdres)) / tau_temp);
+            }
+        }
+    }
+
+    /* Calculate parameters for approximate power-law adaptation (sout2) */
+    delta = (log(tau_long_fast) - log(tau_short_fast)) / (n_process - 1);
+    tau_temp = 0.0;
+    for (int t = 0; t < n_fiber_type; t++) {
+        for (int i = 0; i < n_chan; i++) {
+            for (int p = 0; p < n_process; p++) {
+                // Initialize exponential process states at 0
                 E2[t][i][p] = 0.0;
 
                 // Determine time constant for this step, convert to decay coef and save
-                tau_temp = exp(log(tau_short) + delta * p);
-                D1[t][i][p] = exp(-(1/(1/tdres)) / tau_temp);
+                tau_temp = exp(log(tau_short_fast) + delta * p);
                 D2[t][i][p] = exp(-(1/(1/tdres)) / tau_temp);
             }
         }
@@ -657,7 +681,7 @@ void model(double *px, double **randNums_hsr, double **randNums_lsr, double *cf,
                 } else if (powerlaw_mode == 2) {
                     apply_powerlaw_adaptation_iir(expout[t][c], randNums[t][c], &I1[t][c],
                         &I2[t][c], E1[t][c], E2[t][c], D1[t][c], D2[t][c], n_process, n,
-                        coef_iir * alpha1, coef_iir * alpha2, tdres, sout1[t][c], sout2[t][c]);
+                        coef_slow, coef_fast, tdres, sout1[t][c], sout2[t][c]);
                 }
                 synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
 

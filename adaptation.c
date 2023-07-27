@@ -213,11 +213,11 @@ void apply_powerlaw_adaptation(double *x, double *randNums, double *I1, double *
                                double alpha1, double beta1, double alpha2, 
                                double beta2, double tdres, double *sout1, double *sout2) {
     sout1[n]  = __max(0, x[n] + randNums[n] - alpha1*(*I1));
-//    sout2[n] = __max(0, x[n] - alpha2*(*I2));
+    sout2[n] = __max(0, x[n] - alpha2*(*I2));
     (*I1) = 0.0; (*I2) = 0.0;
     for (int j = 0; j < n+1; ++j) {
         (*I1) += (sout1[j])*tdres/((n-j)*tdres + beta1);
-//        (*I2) += (sout2[j])*tdres/((n-j)*tdres + beta2);
+        (*I2) += (sout2[j])*tdres/((n-j)*tdres + beta2);
     }
 }
 
@@ -248,19 +248,19 @@ void apply_powerlaw_adaptation_iir(double *x, double *randNums, double *I1, doub
                                double tdres, double *sout1, double *sout2) {
     // Apply power-law adaptation
     sout1[n]  = __max(0, x[n] + randNums[n] - alpha1*(*I1));
-//    sout2[n] = __max(0, x[n] - alpha2*(*I2));
+    sout2[n] = __max(0, x[n] - alpha2*(*I2));
 
     // Update values for I1/I2 based on approximation via parallel exponential processes
     (*I1) = 0.0; (*I2) = 0.0;
     for (int i = 0; i < n_process; i++) {
         if (n == 0) {
             E1[i] = (1-D1[i]) * sout1[n];
- //           E2[i] = (1-D2[i]) * 1e-1 * x[n];
+            E2[i] = (1-D2[i]) * sout2[n];
         } else {
             E1[i] = (1-D1[i]) * sout1[n] + D1[i] * E1[i];
-  //          E2[i] = (1-D2[i]) * 1e-1 * x[n] + D2[i] * E2[i];
+            E2[i] = (1-D2[i]) * sout2[n] + D2[i] * E2[i];
         }
         (*I1) += E1[i];
-   //     (*I2) += E2[i];
+        (*I2) += E2[i];
     }
 }
