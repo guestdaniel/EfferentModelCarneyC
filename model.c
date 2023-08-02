@@ -70,91 +70,91 @@
  * parameter in the function signature below are provided in the docstring for the main
  * model function.
  */
-void model_efferent_wrapper(double *px, 
-							double **randNums_hsr, 
-							double **randNums_lsr, 
-                            double *cf, 
-							int n_chan, 
-							double tdres, 
-							int totalstim, 
-							double cohc, 
-                            double cihc, 
-							int species,
-							int powerlaw_mode,
-                            double ic_tau_e, 
-							double ic_tau_i, 
-                            double ic_delay, 
-							double ic_amp, 
-							double ic_inh, 
-							double moc_cutoff,
-                            double moc_beta_wdr, 
-							double moc_offset_wdr, 
-							double moc_beta_ic, 
-                            double moc_offset_ic, 
-							double moc_weight_wdr, 
-                            double moc_weight_ic, 
-							double moc_width_wdr, 
-							double **ihcout, 
-                            double **anrateout_hsr, 
-							double **anrateout_lsr, 
-							double **icout,
-                            double **gain) {
+// void model_efferent_wrapper(double *px, 
+// 							double **randNums_hsr, 
+// 							double **randNums_lsr, 
+//                             double *cf, 
+// 							int n_chan, 
+// 							double tdres, 
+// 							int totalstim, 
+// 							double cohc, 
+//                             double cihc, 
+// 							int species,
+// 							int powerlaw_mode,
+//                             double ic_tau_e, 
+// 							double ic_tau_i, 
+//                             double ic_delay, 
+// 							double ic_amp, 
+// 							double ic_inh, 
+// 							double moc_cutoff,
+//                             double moc_beta_wdr, 
+// 							double moc_offset_wdr, 
+// 							double moc_beta_ic, 
+//                             double moc_offset_ic, 
+// 							double moc_weight_wdr, 
+//                             double moc_weight_ic, 
+// 							double moc_width_wdr, 
+// 							double **ihcout, 
+//                             double **anrateout_hsr, 
+// 							double **anrateout_lsr, 
+// 							double **icout,
+//                             double **gain) {
 
-    /* First, allocate memory for all of the extra output matrices */
-    double *controlout[n_chan], *c1out[n_chan], *c2out[n_chan], 
-        *expout_hsr[n_chan], *sout1_hsr[n_chan], *sout2_hsr[n_chan], *synout_hsr[n_chan], 
-        *expout_lsr[n_chan], *sout1_lsr[n_chan], *sout2_lsr[n_chan], *synout_lsr[n_chan],
-        *cnout[n_chan], *mocwdr[n_chan], *mocic[n_chan];
+//     /* First, allocate memory for all of the extra output matrices */
+//     double *controlout[n_chan], *c1out[n_chan], *c2out[n_chan], 
+//         *expout_hsr[n_chan], *sout1_hsr[n_chan], *sout2_hsr[n_chan], *synout_hsr[n_chan], 
+//         *expout_lsr[n_chan], *sout1_lsr[n_chan], *sout2_lsr[n_chan], *synout_lsr[n_chan],
+//         *cnout[n_chan], *mocwdr[n_chan], *mocic[n_chan];
 
-    for (int i = 0; i < n_chan; i++) {
-        controlout[i] = (double*) calloc(totalstim, sizeof(double));
-        c1out[i] = (double*) calloc(totalstim, sizeof(double));
-        c2out[i] = (double*) calloc(totalstim, sizeof(double));
-        expout_hsr[i] = (double*) calloc(totalstim, sizeof(double));
-        sout1_hsr[i] = (double*) calloc(totalstim, sizeof(double));
-        sout2_hsr[i] = (double*) calloc(totalstim, sizeof(double));
-        synout_hsr[i] = (double*) calloc(totalstim, sizeof(double));
-        expout_lsr[i] = (double*) calloc(totalstim, sizeof(double));
-        sout1_lsr[i] = (double*) calloc(totalstim, sizeof(double));
-        sout2_lsr[i] = (double*) calloc(totalstim, sizeof(double));
-        synout_lsr[i] = (double*) calloc(totalstim, sizeof(double));
-        cnout[i] = (double*) calloc(totalstim, sizeof(double));
-        mocwdr[i] = (double*) calloc(totalstim, sizeof(double));
-        mocic[i] = (double*) calloc(totalstim, sizeof(double));
-    }
+//     for (int i = 0; i < n_chan; i++) {
+//         controlout[i] = (double*) calloc(totalstim, sizeof(double));
+//         c1out[i] = (double*) calloc(totalstim, sizeof(double));
+//         c2out[i] = (double*) calloc(totalstim, sizeof(double));
+//         expout_hsr[i] = (double*) calloc(totalstim, sizeof(double));
+//         sout1_hsr[i] = (double*) calloc(totalstim, sizeof(double));
+//         sout2_hsr[i] = (double*) calloc(totalstim, sizeof(double));
+//         synout_hsr[i] = (double*) calloc(totalstim, sizeof(double));
+//         expout_lsr[i] = (double*) calloc(totalstim, sizeof(double));
+//         sout1_lsr[i] = (double*) calloc(totalstim, sizeof(double));
+//         sout2_lsr[i] = (double*) calloc(totalstim, sizeof(double));
+//         synout_lsr[i] = (double*) calloc(totalstim, sizeof(double));
+//         cnout[i] = (double*) calloc(totalstim, sizeof(double));
+//         mocwdr[i] = (double*) calloc(totalstim, sizeof(double));
+//         mocic[i] = (double*) calloc(totalstim, sizeof(double));
+//     }
 
-    /* Call the main model function */
-    model(px, randNums_hsr, randNums_lsr, cf,                    // principal inputs
-          n_chan, tdres, totalstim, cohc, cihc, species, 100.0,  // IHC/AN parameters
-          powerlaw_mode,                                         // powerlaw parameters
-          0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6,                      // CN parameters
-          ic_tau_e, ic_tau_i, ic_delay, ic_amp, ic_inh,          // IC parameters
-          moc_cutoff, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0,    // MOC parameters
-          moc_beta_ic, moc_offset_ic, 0.0, 1.0, moc_weight_wdr,  // ...
-          moc_weight_ic, moc_width_wdr,                          // ...
-          controlout, c1out, c2out, ihcout, expout_hsr,          // output matrices
-          sout1_hsr, sout2_hsr, synout_hsr, expout_lsr,          // ...
-          sout1_lsr, sout2_lsr, synout_lsr, anrateout_hsr,       // ...
-          anrateout_lsr, cnout, icout, mocwdr, mocic, gain);     // ...
+//     /* Call the main model function */
+//     model(px, randNums_hsr, randNums_lsr, cf,                    // principal inputs
+//           n_chan, tdres, totalstim, cohc, cihc, species, 100.0,  // IHC/AN parameters
+//           powerlaw_mode,                                         // powerlaw parameters
+//           0.5e-3, 2.0e-3, 1.0e-3, 1.5, 0.6,                      // CN parameters
+//           ic_tau_e, ic_tau_i, ic_delay, ic_amp, ic_inh,          // IC parameters
+//           moc_cutoff, moc_beta_wdr, moc_offset_wdr, 0.0, 1.0,    // MOC parameters
+//           moc_beta_ic, moc_offset_ic, 0.0, 1.0, moc_weight_wdr,  // ...
+//           moc_weight_ic, moc_width_wdr,                          // ...
+//           controlout, c1out, c2out, ihcout, expout_hsr,          // output matrices
+//           sout1_hsr, sout2_hsr, synout_hsr, expout_lsr,          // ...
+//           sout1_lsr, sout2_lsr, synout_lsr, anrateout_hsr,       // ...
+//           anrateout_lsr, cnout, icout, mocwdr, mocic, gain);     // ...
 
-    /* Finally, free allocated memory */
-    for (int i = 0; i < n_chan; i++) {
-        free(controlout[i]);
-        free(c1out[i]);
-        free(c2out[i]);
-        free(expout_hsr[i]);
-        free(sout1_hsr[i]);
-        free(sout2_hsr[i]);
-        free(synout_hsr[i]);
-        free(expout_lsr[i]);
-        free(sout1_lsr[i]);
-        free(sout2_lsr[i]);
-        free(synout_lsr[i]);
-        free(cnout[i]);
-        free(mocwdr[i]);
-        free(mocic[i]);
-    }
-}
+//     /* Finally, free allocated memory */
+//     for (int i = 0; i < n_chan; i++) {
+//         free(controlout[i]);
+//         free(c1out[i]);
+//         free(c2out[i]);
+//         free(expout_hsr[i]);
+//         free(sout1_hsr[i]);
+//         free(sout2_hsr[i]);
+//         free(synout_hsr[i]);
+//         free(expout_lsr[i]);
+//         free(sout1_lsr[i]);
+//         free(sout2_lsr[i]);
+//         free(synout_lsr[i]);
+//         free(cnout[i]);
+//         free(mocwdr[i]);
+//         free(mocic[i]);
+//     }
+// }
 
 /**
  * model
