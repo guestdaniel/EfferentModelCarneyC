@@ -7,8 +7,8 @@
 void model(
     // Principal inputs
     double *,   // px
-    double **,  // randNums_hsr
-    double **,  // randNums_lsr
+    double ***,  // randNums_hsr
+    double ***,  // randNums_lsr
     double *,   // cf
     // IHC/AN parameters
     int,        // n_chan

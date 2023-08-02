@@ -317,8 +317,8 @@
  */
 void model(
     double *px, 
-    double **randNums_hsr, 
-    double **randNums_lsr, 
+    double ***randNums_hsr, 
+    double ***randNums_lsr, 
     double *cf, 
     int n_chan, 
     double tdres, 
@@ -371,7 +371,7 @@ void model(
     double **gain
 ) {
     /* Declare pointers to store convenient references to LSR/HSR pathway stages */
-    double** randNums[2] = {randNums_hsr, randNums_lsr};
+    double*** randNums[2] = {randNums_hsr, randNums_lsr};
     double** expout[2] = {expout_hsr, expout_lsr};
     double** sout1[2] = {sout1_hsr, sout1_lsr};
     double** sout2[2] = {sout2_hsr, sout2_lsr};
@@ -716,11 +716,11 @@ void model(
 
                 /* Apply power-law adaptation */
                 if (powerlaw_mode == 1) {
-                    apply_powerlaw_adaptation(expout[t][c], randNums[t][c], &I1[t][c], 
+                    apply_powerlaw_adaptation(expout[t][c], randNums[t][0][c], &I1[t][c], 
                                             &I2[t][c], n, alpha1, beta1, alpha2, beta2, tdres,
                                             sout1[t][c], sout2[t][c]);
                 } else if (powerlaw_mode == 2) {
-                    apply_powerlaw_adaptation_iir(expout[t][c], randNums[t][c], &I1[t][c],
+                    apply_powerlaw_adaptation_iir(expout[t][c], randNums[t][0][c], &I1[t][c],
                         &I2[t][c], E1[t][c], E2[t][c], D1[t][c], D2[t][c], n_process, n,
                         coef_slow, coef_fast, tdres, sout1[t][c], sout2[t][c]);
                 }
