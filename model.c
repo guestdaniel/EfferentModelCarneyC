@@ -1011,8 +1011,8 @@ void model_ia(
            VI[n_fiber_type][n_chan], PG[n_fiber_type][n_chan], CG[n_fiber_type][n_chan],
            VL[n_fiber_type][n_chan], PL[n_fiber_type][n_chan], I1[n_fiber_type][10][n_chan], 
            I2[n_fiber_type][10][n_chan], 
-           E1[n_fiber_type][n_chan][n_process], E2[n_fiber_type][n_chan][n_process], 
-           D1[n_fiber_type][n_chan][n_process], D2[n_fiber_type][n_chan][n_process],
+           E1[n_fiber_type][10][n_chan][n_process], E2[n_fiber_type][10][n_chan][n_process], 
+           D1[n_fiber_type][10][n_chan][n_process], D2[n_fiber_type][10][n_chan][n_process],
            CI[n_fiber_type][n_chan], CL[n_fiber_type][n_chan], 
            CIlast[n_fiber_type][n_chan];
 
@@ -1068,14 +1068,16 @@ void model_ia(
     double delta = (log(tau_long_slow) - log(tau_short_slow)) / (n_process - 1);
     double tau_temp = 0.0;
     for (int t = 0; t < n_fiber_type; t++) {
-        for (int i = 0; i < n_chan; i++) {
-            for (int p = 0; p < n_process; p++) {
-                // Initialize exponential process states at 0
-                E1[t][i][p] = 0.0;
+        for (int k = 0; k < (10 - 5*t); k++) {
+            for (int i = 0; i < n_chan; i++) {
+                for (int p = 0; p < n_process; p++) {
+                    // Initialize exponential process states at 0
+                    E1[t][k][i][p] = 0.0;
 
-                // Determine time constant for this step, convert to decay coef and save
-                tau_temp = exp(log(tau_short_slow) + delta * p);
-                D1[t][i][p] = exp(-(1/(1/tdres)) / tau_temp);
+                    // Determine time constant for this step, convert to decay coef and save
+                    tau_temp = exp(log(tau_short_slow) + delta * p);
+                    D1[t][k][i][p] = exp(-(1/(1/tdres)) / tau_temp);
+                }
             }
         }
     }
@@ -1084,14 +1086,16 @@ void model_ia(
     delta = (log(tau_long_fast) - log(tau_short_fast)) / (n_process - 1);
     tau_temp = 0.0;
     for (int t = 0; t < n_fiber_type; t++) {
-        for (int i = 0; i < n_chan; i++) {
-            for (int p = 0; p < n_process; p++) {
-                // Initialize exponential process states at 0
-                E2[t][i][p] = 0.0;
+        for (int k = 0; k < (10 - 5*t); k++) {
+            for (int i = 0; i < n_chan; i++) {
+                for (int p = 0; p < n_process; p++) {
+                    // Initialize exponential process states at 0
+                    E2[t][k][i][p] = 0.0;
 
-                // Determine time constant for this step, convert to decay coef and save
-                tau_temp = exp(log(tau_short_fast) + delta * p);
-                D2[t][i][p] = exp(-(1/(1/tdres)) / tau_temp);
+                    // Determine time constant for this step, convert to decay coef and save
+                    tau_temp = exp(log(tau_short_fast) + delta * p);
+                    D2[t][k][i][p] = exp(-(1/(1/tdres)) / tau_temp);
+                }
             }
         }
     }
@@ -1223,15 +1227,15 @@ void model_ia(
                                             expout[t][c]);
 
                     /* Apply power-law adaptation */
-                    // if (powerlaw_mode == 1) {
+                    if (powerlaw_mode == 1) {
                         apply_powerlaw_adaptation(expout[t][c], randNums[t][p][c], &I1[t][p][c], 
                                                 &I2[t][p][c], n, alpha1, beta1, alpha2, beta2, tdres,
                                                 sout1[t][p][c], sout2[t][p][c]);
-                    // } else if (powerlaw_mode == 2) {
-                    //     apply_powerlaw_adaptation_iir(expout[t][p][c], randNums[t][p][c], &I1[t][p][c],
-                    //         &I2[t][p][c], E1[t][p][c], E2[t][p][c], D1[t][p][c], D2[t][p][c], n_process, n,
-                    //         coef_slow, coef_fast, tdres, sout1[t][p][c], sout2[t][p][c]);
-                    // }
+                    } else if (powerlaw_mode == 2) {
+                        apply_powerlaw_adaptation_iir(expout[t][c], randNums[t][p][c], &I1[t][p][c],
+                            &I2[t][p][c], E1[t][p][c], E2[t][p][c], D1[t][p][c], D2[t][p][c], n_process, n,
+                            coef_slow, coef_fast, tdres, sout1[t][p][c], sout2[t][p][c]);
+                    }
                     synout[t][c][n] = synout[t][c][n] + (1.0 / (10 - 5*t)) * (sout1[t][p][c][n] + sout2[t][p][c][n]);
                 }
 
