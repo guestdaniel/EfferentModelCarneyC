@@ -1,15 +1,16 @@
  /*
-  This is v5.1 of the code for subcortical auditory model model of:
+  This is v5.2 of the code for subcortical auditory model model of:
 
-  Guest, D. R., ..., and Carney, L. H. (202x). ...
+  Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
 
-  The peripheral stage of this model is derived from the work of:
+  The peripheral stage of this model is derived from the following work, listed in 
+  chronological order:
 
   Zilany, M. S., & Bruce, I. C. (2006). Modeling auditory-nerve responses for high sound 
   pressure levels in the normal and impaired auditory periphery. The Journal of the 
   Acoustical Society of America, 120(3), 1446-1466.
 
-  Zilany, M.S.A., Bruce, I.C., Nelson, P.C., and Carney, L.H. (2009). "A
+  * Zilany, M.S.A., Bruce, I.C., Nelson, P.C., and Carney, L.H. (2009). "A
   Phenomenological model of the synapse between the inner hair cell and auditory
   nerve : Long-term adaptation with power-law dynamics," Journal of the
   Acoustical Society of America 126(5): 2390-2412.
@@ -23,16 +24,20 @@
   "Improved parameters and expanded simulation options for a model of the
   auditory periphery," in Abstracts of the 36th ARO Midwinter Research Meeting.
 
-  Zilany, M. S., Bruce, I. C., & Carney, L. H. (2014). Updated parameters and expanded 
+  * Zilany, M. S., Bruce, I. C., & Carney, L. H. (2014). Updated parameters and expanded 
   simulation options for a model of the auditory periphery. The Journal of the Acoustical 
   Society of America, 135(1), 283-286.
 
-  The peripheral stage was modified to include a sample-by-sample efferent gain control 
-  loop, which is controlled by an auditory brainstem and midbrain model included in this
-  code.
+  * Farhadi, ... (2023) ... TBD
 
-  Please cite these papers if you publish any research results obtained with this code or 
-  any modified versions of this code.
+  The peripheral stage was modified by Afagh Farhadi to include a sample-by-sample efferent 
+  gain control loop, which is controlled by an auditory brainstem and midbrain model 
+  included in this code. This efferent model was modified by Daniel Guest to allow for 
+  "crosstalk" between different channels (i.e., efferent responses in one channel can 
+  affect gain in others).
+
+  Please cite these papers marked with asterisks (*) if you publish any research results 
+  obtained with this code or any modified versions of this code.
 
   To compare this code to older model versions, please refer to changelog.txt and to the 
   Git commit history. 

@@ -1,3 +1,8 @@
+5.2
+  - Refined PLA approximation parameters based on updated optimization scheme. The main 
+    change from previous versions is that the stimulus was much more challenging than a pure
+    tone and optimization was repeated many times with random initialization values and then
+    a single best fit was selected.
 5.1
   - Added approximate power-law adaptation. This approximation is based on using many parallel 
     exponential adaptation processes with a wide range of time constants in lieu of the 
