@@ -1,3 +1,17 @@
+5.4 (11/13/2023)
+  - Modified the way that WDR-driven gain control is normalized with respect to the number of
+    contributing channels in the underlying simulation. Previously, gain-factor values from
+    different channels were combined via multiplication and then normalized by raising the
+    final value to the power of 1/n_cf_per_oct. This achieved normalization with respect to 
+    the "density" of CFs in the simulation, but changing the width of the WDR projections 
+    resulted in changes in the effective strength of WDR-driven gain control. To make it 
+    easier to explore the effects of WDR pathway width without confounding it with the 
+    overall strength of the WDR pathway, this normalization factor was altered to be
+    1/(n_cf_per_oct * moc_width_wdr), which means that WDR-driven gain-factor values
+    are now normalized with respect to the number of channels that contributed to the 
+    gain factor value. The final calculation can be understood as a geometric mean of all 
+    the contributing gain-factor values. If moc_width_wdr is set to zero, we disable this 
+    normalization scheme.
 5.3 (11/13/2023)
   - Modified Cohc and Cihc to be vector-valued instead of scalar-valued. Each is now a 
     vector of the same shape as the CF vector, so Cohc and Cihc can be different in each

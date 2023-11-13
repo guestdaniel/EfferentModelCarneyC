@@ -783,7 +783,24 @@ void model(
                                          moc_offset_wdr, moc_maxrate_wdr, moc_minrate_wdr);
                 }
             }
-            gain_wdr = pow(gain_wdr, 1/n_cf_per_oct);
+
+            /* Normalize the WDR-driven gain factor */
+            /* Normalization happens in one of two ways, depending on moc_width_wdr:
+            1) If moc_width_wdr == 0.0, then the above loop reduces to 
+                >>> gain_wdr = moc_nonlinearity(moc_weight_wdr * mocwdr[c][n]))
+            i.e., each channel's gain factor is affected only by responses in that channel.
+            Thus, we assume that no normalization should occur, so the gain_wdr value 
+            determined by the above block is left unchanged.
+            2) If moc_width_wdr > 0.0, then the gain_wdr value determined above reflects
+            contributions from multiple channels. We seek to normalize the final gain factor
+            with respect to the number of channels that contribute. Roughly, this value is
+            n_cf_per_oct * moc_width_wdr. If we denote this value x, we normalize by:
+                >>> gain_wdr = gain_wdr ^ (1/x)
+            By raising to 1/x power, we essentially transform the computation of gain_wdr
+            value into a geometric mean of the individual channels' gain factors. */
+            if (moc_width_wdr > 0.0) {
+                gain_wdr = pow(gain_wdr, 1/(n_cf_per_oct*moc_width_wdr));
+            }
 
             /* Store final gain result, which is cohc * gain_wdr * gain_ic */
             gain[c][n] = cohc[c] * gain_wdr * gain_ic;
