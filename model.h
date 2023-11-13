@@ -14,8 +14,8 @@ void model(
     int,        // n_chan
     double,     // tdres
     int,        // totalstim
-    double,     // cohc
-    double,     // cihc
+    double *,   // cohc
+    double *,   // cihc
     int,        // species
     double,     // spont
     int,        // powerlaw_mode

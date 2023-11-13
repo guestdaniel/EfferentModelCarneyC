@@ -1,5 +1,5 @@
  /*
-  This is v5.2 of the code for subcortical auditory model model of:
+  This is v5.3 of the code for subcortical auditory model model of:
 
   Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
 
@@ -82,8 +82,8 @@ void model_efferent_wrapper(double *px,
 							int n_chan, 
 							double tdres, 
 							int totalstim, 
-							double cohc, 
-                            double cihc, 
+							double *cohc, 
+                            double *cihc, 
 							int species,
 							int powerlaw_mode,
                             double ic_tau_e, 
@@ -215,14 +215,15 @@ void model_efferent_wrapper(double *px,
  * Suitable sampling rates are ~100 kHz for human simulations and 200 kHz for cat
  * simulations.
  * @param [in] totalstim Number of samples in the simulation
- * @param [in] cohc Scalar in [0, 1] controlling the "gain factor", which enters into the
- * equations determining how to set the cochlear filter time constants and (therefore) the
- * cochlear gain. A value of 0 makes the model fully "hearing-impaired" and efferent gain
- * control will have no impact on responses. A value of 1 with the efferent gain control
- * disabled results in "normal-hearing" responses designed to emulate physiological
- * auditory-nerve data.
- * @param [in] cihc Scalar in [0, 1] controlling the output amplitude of the inner hair
- * cells
+ * @param [in] cohc (n_chan, 1) Vector containing elements in [0, 1] controlling the 
+ * Cohc value for each CF channel. This value is multiplied with the resulting "gain factor"
+ * yielded by the MOC gain-control pathway. A value of 0 makes the model fully 
+ * "hearing-impaired" and efferent gain control will have no impact on responses. 
+ * A value of 1 with the efferent gain control disabled results in a fully "normal-hearing" 
+ * response that should match data recorded in anesthetized auditory nerve. 
+ * @param [in] cihc (n_chan, 1) Vector containing elements in [0, 1] controlling the 
+ * Cihc value for each CF channel. This controls the amplitude of inner-hair-cell responses
+ * produced by the C1 filter (it has no effect on responses produced by the C2 filter).
  * @param [in] species Integer indicating which species to simulate (1==cat, 2=human[shera],
  * 3==human[glasberg])
  * @param [in] powerlaw_include_fast Integer indicating whether to include or exclude the
@@ -328,8 +329,8 @@ void model(
     int n_chan, 
     double tdres, 
     int totalstim, 
-    double cohc, 
-    double cihc, 
+    double *cohc, 
+    double *cihc, 
     int species, 
     double spont, 
     int powerlaw_mode,
@@ -534,7 +535,7 @@ void model(
         TauWBMax[c] = Taumin[c] + 0.2*(Taumax[c]-Taumin[c]); // Eq 4, Zilany and Bruce (2006)
         TauWBMin[c] = TauWBMax[c]/Taumax[c]*Taumin[c];
         Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
-        bmTaubm[c] = cohc*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
+        bmTaubm[c] = cohc[c]*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
         tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c]) * 
             (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
         wbgain[c] = gain_groupdelay(tdres, centerfreq[c], cf[c], tauwb[c], &grdelay[c]);
@@ -659,7 +660,7 @@ void model(
             /* Determine time constants for cochlear filters */
             Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
             if (n == 0) {
-                bmTaubm[c] = cohc*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
+                bmTaubm[c] = cohc[c]*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
             } else {
                 bmTaubm[c] = (gain[c][n-1])*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
             }
@@ -675,7 +676,7 @@ void model(
 
             /* Determine time constant and shift of C1 filter poles based on output of OHCs */
             if (n == 0) {
-                tauc1 = cohc*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+                tauc1 = cohc[c]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
             } else {
                 tauc1 = (gain[c][n-1])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
             }
@@ -705,7 +706,7 @@ void model(
                                       C2output[c]);
 
             /* Apply IHC model: NL input-output function and lowpass filtering */
-            c1vihctmp  = NLogarithm(cihc*c1out[c][n], 0.1, 3.0, cf[c]);
+            c1vihctmp  = NLogarithm(cihc[c]*c1out[c][n], 0.1, 3.0, cf[c]);
             c2vihctmp = -NLogarithm(c2out[c][n]*fabs(c2out[c][n])*cf[c]/10*cf[c]/2e3, 0.2, 
                                     1.0, cf[c]); /* C2 transduction output */
             ihcout[c][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[c], 
@@ -785,7 +786,7 @@ void model(
             gain_wdr = pow(gain_wdr, 1/n_cf_per_oct);
 
             /* Store final gain result, which is cohc * gain_wdr * gain_ic */
-            gain[c][n] = cohc * gain_wdr * gain_ic;
+            gain[c][n] = cohc[c] * gain_wdr * gain_ic;
         }
     }
 
