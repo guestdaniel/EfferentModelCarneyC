@@ -1,9 +1,9 @@
-5.2
+5.2 (11/06/2023)
   - Refined PLA approximation parameters based on updated optimization scheme. The main 
     change from previous versions is that the stimulus was much more challenging than a pure
     tone and optimization was repeated many times with random initialization values and then
     a single best fit was selected.
-5.1
+5.1 (07/25/2023)
   - Added approximate power-law adaptation. This approximation is based on using many parallel 
     exponential adaptation processes with a wide range of time constants in lieu of the 
     true power-law adaptation. These processes can be implemented efficiently as 
@@ -14,9 +14,9 @@
     match approximate to true output waveforms for the power-law stages in response to 
     brief pure tones at various frequencies (this procedure will be improved in the future
     to give better fits to a wider range of stimuli).
-4.3
+4.3 (06/29/2023)
   - Fixed bug related to calculation of MOC lowpass filter parameters
-4.2
+4.2 (04/16/2023)
   - Added arguments to control "fastmode" hacks. In the main model function, 
     powerlaw_include_fast determines whether the fast power-law adaptation is included in
     the model, and powerlaw_len_memory allows the user to limit the maximum memory length
@@ -24,7 +24,7 @@
     with mex, we simply expose a fastmode switch that either runs the model without any
     hacks (fastmode==0) or runs the model with the fast power law disabled and a maximum
     power-law memory length of 5000 samples (fastmode==1)
-4.1
+4.1 (03/31/2023)
   - Modified MOC gain control stage in several ways
   - Final gain value for each sample, which is in the range [0, 1], is now computed as the 
     product of several individual gain control signals (also in range [0, 1]). These include
@@ -33,20 +33,20 @@
   - Separated parameters for the MOC nonlinearity in the IC-driven path and the WDR-driven
     path
   - Provided a simplified model function to call that wraps the main model function 
-4.0
+4.0 (03/16/2023)
   - Added medial olivocochlear stage (MOC) to model --- MOC dynamically controls 
     cochlear gain sample-by-sample
   - Added lowpass filtering and input-output nonlinearity code for MOC 
   - Modified calculation of some cochlear filtering parameters to pull them into the
     main model loop and update them sample-by-sample based on feedback signals from MOC
   - Fixed a bug in how auditory-nerve rates were being calculated
-3.0
+3.0 (03/14/2023)
   - Added subcortical stage after auditory periphery stage (implemented as two-stage
     same-frequency inhibition-excitation [SFIE] model)
   - Added code in sfie.c to implement basic SFIE filtering
   - Modified main function signature, declarations/allocations to handle new subcortical 
     model stage
-2.0
+2.0 (03/14/2023)
   - Added support for simultaneously simulating HSR/LSR responses, which resulted in 
     several associated changes (described below)
   - Hid both adaptation stages (Westerman and Smith / power law) in several functions
@@ -55,7 +55,7 @@
     types of adaptation
   - Modified main model function signature, declarations and initializations, etc. to 
     match new parallel signal flow in AN stage
-1.1
+1.1 (03/08/2023)
   - Cleaned up documentation in several functions and added some helpful comments to 
     point to the right papers for various equations
   - Removed meout, c1vihcout, c2vihcout from main function signature to reduce 
@@ -63,7 +63,7 @@
     outputs)
   - Reordered function signature for main model function to put synout as the last 
     argument (so that all outputs match signal flow)
-1.0
+1.0 (03/07/2023)
   - Converted all calculations, inputs, outputs, etc. to multichannel 
   - Modified all functions using static arrays to preserve state across samples to use
     instead state variables passed in and out of functions via pointers, so they can be 
