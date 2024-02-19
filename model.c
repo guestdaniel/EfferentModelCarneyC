@@ -619,12 +619,13 @@ void model(
         ic_e_tmp[i] = (double*) calloc(totalstim, sizeof(double));
         ic_i_tmp[i] = (double*) calloc(totalstim, sizeof(double));
     }
+    double ic_tau_e_tmp = 0.0;
+    double ic_tau_i_tmp = 0.0;
+    double ic_delay_tmp = 0.0;
 
-    /* Compute coefficients, variables, etc. for subcortical stage */
+    /* Calculate CN params (constant across CFs) */
     get_alpha_norm(cn_tau_e, 1/tdres, 1.0, cn_B_e, cn_A_e);
     get_alpha_norm(cn_tau_i, 1/tdres, 1.0, cn_B_i, cn_A_i);
-    get_alpha_norm(ic_tau_e, 1/tdres, 1.0, ic_B_e, ic_A_e);
-    get_alpha_norm(ic_tau_i, 1/tdres, 1.0, ic_B_i, ic_A_i);
 
     /* Calculate variables for the MOC stage */
     double moc_d = exp(-TWOPI * (moc_cutoff/(1/tdres)));
@@ -746,6 +747,26 @@ void model(
             /* Compute output signal and rectify */
             cntmp = tdres * (cn_amp*cn_e_tmp[c][n] - (cn_amp*cn_inh)*cn_i_tmp[c][n]);
             cnout[c][n] = hw_rectify(cntmp);
+
+            /* Update IC parameters based on CF */
+            if (cf[c]/4.0 > 64.0) {
+                /* Since this is a high CF (cf/4 > 64 Hz), we merely update back to ref values */
+                ic_len_delay = (int) floor(ic_delay * 1/tdres);
+                get_alpha_norm(ic_tau_e, 1/tdres, 1.0, ic_B_e, ic_A_e);
+                get_alpha_norm(ic_tau_i, 1/tdres, 1.0, ic_B_i, ic_A_i);
+
+           } else {
+                /* Since this is a low CF channel (cf/4 < 64 Hz), we need to calc temp values of IC params */
+                ic_tau_e_tmp = 1.0 / (10.0 * cf[c]/4.0);
+                ic_tau_i_tmp = ic_tau_e_tmp * 1.5;
+                ic_delay_tmp = ic_tau_e_tmp * 2.0;
+
+                /* Update IC delay value and parameters values */
+                /* Since this is a high CF (cf/4 > 64 Hz), we merely update back to ref values */
+                ic_len_delay = (int) floor(ic_delay_tmp * 1/tdres);
+                get_alpha_norm(ic_tau_e_tmp, 1/tdres, 1.0, ic_B_e, ic_A_e);
+                get_alpha_norm(ic_tau_i_tmp, 1/tdres, 1.0, ic_B_i, ic_A_i);
+           }
 
             /* Delay CN output for SFIE inferior colliculus inhibitory pathway */
             delay_signal(cnout[c], n, ic_len_delay, ic_i[c]);
