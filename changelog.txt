@@ -1,3 +1,8 @@
+5.5 (2/19/2024)
+  - Modified calculation of IC SFIE time constants to match how it was handled in previous
+    "automatic BMF" versions of the SFIE code. Specifically, for CF channels with CF/4 < 64 Hz,
+    we the equations from the `SFIE_BE_BS_BMF` MATLAB function to set the IC parameters
+    to yield a BMF of CF/4, instead of 64 Hz.
 5.4 (11/13/2023)
   - Modified the way that WDR-driven gain control is normalized with respect to the number of
     contributing channels in the underlying simulation. Previously, gain-factor values from
