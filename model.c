@@ -639,6 +639,26 @@ void model(
         n_cf_per_oct = n_chan/(log2(cf[n_chan-1]) - log2(cf[0]));
     }
 
+    /* Create connectivity matrix for MOC WDR pathway
+    At the end of each step of the time loop, we must determine which MOC signals from other
+    channels are "allowed" to contribute to the gain factor calculated for the present 
+    channel. We require that the distance between the current channel and a given channel,
+    in terms of their CFs, be less than 1/2 of the paramter moc_width_wdr (in octaves). To
+    avoid overhead associated with computation of log2 on each step, we precompute a 
+    connectivity matrix that instantiates this rule and then use it in the loop below. This
+    matrix, moc_connected below, encodes whether channel i should receive MOC WDR 
+    contributions from channel j */
+    int moc_connected[n_chan][n_chan];
+    for (int i=0; i < n_chan; i++) {
+        for (int j=0; j < n_chan; j++) {
+            if ( fabs(log2(cf[i]) - log2(cf[j])) <= (moc_width_wdr/2) ) {
+                moc_connected[i][j] = 1;
+            } else {
+                moc_connected[i][j] = 0;
+            }
+        }
+    }
+
     /* Calculate middle-ear output */
     middle_ear(px, tdres, totalstim, species, meout);
 
@@ -798,7 +818,7 @@ void model(
             multiply the resulting gain values together with gain_wdr */
             gain_wdr = 1.0;
             for (int subc = 0; subc < n_chan; subc++) {
-                if (fabs(log2(cf[c]) - log2(cf[subc])) <= (moc_width_wdr/2)) {
+                if (moc_connected[c][subc]) {
                     gain_wdr = gain_wdr * 
                         moc_nonlinearity(moc_weight_wdr * mocwdr[subc][n], moc_beta_wdr, 
                                          moc_offset_wdr, moc_maxrate_wdr, moc_minrate_wdr);
