@@ -1,5 +1,5 @@
  /*
-  This is v5.5 of the code for subcortical auditory model model of:
+  This is v5.6 of the code for subcortical auditory model model of:
 
   Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
 
@@ -496,14 +496,14 @@ void model(
     double alpha2 = 1e-2*100e3; 
     double beta2  = 1e-1;
 
-    /* Declare variables used in PLA approximation system */
-    int n_process = 100;             // how many exponential processes in approx for PLA
-    double coef_slow = 0.031159;     // scalar coefficient used in approx for sout1
-    double tau_short_slow = 5.993231e-4;  // short time constant used in approx for sout1
-    double tau_long_slow = 4.391408e2;   // long time constant used in approx for sout1
-    double coef_fast = 52.383874;    // scalar coefficient used in approx for sout1
-    double tau_short_fast = 5.985333e-2;  // short time constant used in approx for sout2
-    double tau_long_fast = 5.195767e2;  // long time constant used in approx for sout2
+    /* Declare variables used in parallel-exponential PLA approximation system */
+    int n_process = 40;                           // how many exponential processes in approx for PLA
+    double coef_slow = 6.48e-2 * (100.0/40.0);    // scalar coefficient used in approx for sout1
+    double tau_short_slow = 1e-4;                 // short time constant used in approx for sout1
+    double tau_long_slow = 1e7;                   // long time constant used in approx for sout1
+    double coef_fast = 1.285867e2 * (100.0/40.0); // scalar coefficient used in approx for sout2
+    double tau_short_fast = 0.0096;               // short time constant used in approx for sout2
+    double tau_long_fast = 6.5575e3;              // long time constant used in approx for sout2
 
     /* Declare other variables used in the AN stage (all vary by channel/fiber type) */
     int n_fiber_type = 2;  // HSR==0, LSR==1

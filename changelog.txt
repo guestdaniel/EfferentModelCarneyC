@@ -1,3 +1,8 @@
+5.6 (3/19/2024)
+  - Fixed a poor design choice that led to lots of wasted computation in larger multichannel 
+    simulations related to calculating distances between channel CFs
+  - Modified PLA approximation parameters to match newest versions as of mid-March and 
+    adjusted number of processes down to 40 from 100
 5.5 (2/19/2024)
   - Modified calculation of IC SFIE time constants to match how it was handled in previous
     "automatic BMF" versions of the SFIE code. Specifically, for CF channels with CF/4 < 64 Hz,
