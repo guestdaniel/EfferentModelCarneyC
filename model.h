@@ -44,6 +44,14 @@ void model(
     double,     // moc_weight_wdr
     double,     // moc_weight_ic
     double,     // moc_width_wdr
+    // PLA approximation parameters
+    int,        // n_process
+    double,
+    double,
+    double,
+    double,
+    double,
+    double,
     // BM/IHC outputs
     double **,  // controlout
     double **,  // c1out

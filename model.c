@@ -99,6 +99,13 @@ void model_efferent_wrapper(double *px,
 							double moc_weight_wdr, 
                             double moc_weight_ic, 
 							double moc_width_wdr, 
+                            int n_process,
+                            double coef_slow,
+                            double tau_short_slow,
+                            double tau_long_slow,
+                            double coef_fast,
+                            double tau_short_fast,
+                            double tau_long_fast,
 							double **ihcout, 
                             double **anrateout_hsr, 
 							double **anrateout_lsr, 
@@ -137,6 +144,7 @@ void model_efferent_wrapper(double *px,
           moc_cutoff, moc_beta_wdr, moc_offset_wdr, 0.1, 1.0,    // MOC parameters
           moc_beta_ic, moc_offset_ic, 0.1, 1.0, moc_weight_wdr,  // ...
           moc_weight_ic, moc_width_wdr,                          // ...
+          n_process, coef_slow, tau_short_slow, tau_long_slow, coef_fast, tau_short_fast, tau_long_fast,
           controlout, c1out, c2out, ihcout, expout_hsr,          // output matrices
           sout1_hsr, sout2_hsr, synout_hsr, expout_lsr,          // ...
           sout1_lsr, sout2_lsr, synout_lsr, anrateout_hsr,       // ...
@@ -356,6 +364,13 @@ void model(
     double moc_weight_wdr, 
     double moc_weight_ic, 
     double moc_width_wdr,
+    int n_process,
+    double coef_slow,
+    double tau_short_slow,
+    double tau_long_slow,
+    double coef_fast,
+    double tau_short_fast,
+    double tau_long_fast,
     double **controlout, 
     double **c1out, 
     double **c2out, 
@@ -376,6 +391,16 @@ void model(
     double **mocic, 
     double **gain
 ) {
+    /* Declare variables used in parallel-exponential PLA approximation system */
+    // Storing these values here temporarily 
+    // int n_process = 40;                           // how many exponential processes in approx for PLA
+    // double coef_slow = 6.48e-2 * (100.0/40.0);    // scalar coefficient used in approx for sout1
+    // double tau_short_slow = 1e-4;                 // short time constant used in approx for sout1
+    // double tau_long_slow = 1e7;                   // long time constant used in approx for sout1
+    // double coef_fast = 1.285867e2 * (100.0/40.0); // scalar coefficient used in approx for sout2
+    // double tau_short_fast = 0.0096;               // short time constant used in approx for sout2
+    // double tau_long_fast = 6.5575e3;              // long time constant used in approx for sout2
+
     /* Declare pointers to store convenient references to LSR/HSR pathway stages */
     double** randNums[2] = {randNums_hsr, randNums_lsr};
     double** expout[2] = {expout_hsr, expout_lsr};
@@ -495,15 +520,6 @@ void model(
     double beta1  = 5e-4; 
     double alpha2 = 1e-2*100e3; 
     double beta2  = 1e-1;
-
-    /* Declare variables used in parallel-exponential PLA approximation system */
-    int n_process = 40;                           // how many exponential processes in approx for PLA
-    double coef_slow = 6.48e-2 * (100.0/40.0);    // scalar coefficient used in approx for sout1
-    double tau_short_slow = 1e-4;                 // short time constant used in approx for sout1
-    double tau_long_slow = 1e7;                   // long time constant used in approx for sout1
-    double coef_fast = 1.285867e2 * (100.0/40.0); // scalar coefficient used in approx for sout2
-    double tau_short_fast = 0.0096;               // short time constant used in approx for sout2
-    double tau_long_fast = 6.5575e3;              // long time constant used in approx for sout2
 
     /* Declare other variables used in the AN stage (all vary by channel/fiber type) */
     int n_fiber_type = 2;  // HSR==0, LSR==1
