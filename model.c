@@ -870,6 +870,7 @@ void model(
         free(cn_i[i]);
         free(cn_e_tmp[i]);
         free(cn_i_tmp[i]);
+        free(ic_i[i]);
         free(ic_e_tmp[i]);
         free(ic_i_tmp[i]);
     }
