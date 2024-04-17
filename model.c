@@ -1,5 +1,5 @@
  /*
-  This is v5.6 of the code for subcortical auditory model model of:
+  This is v5.7 of the code for subcortical auditory model model of:
 
   Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
 

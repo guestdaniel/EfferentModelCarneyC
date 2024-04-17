@@ -1,3 +1,9 @@
+5.7 (4/17/2024)
+  - Updated the powerlaw adaptation parameters. Previously, a set of parameters that were 
+    selected via optimization on the old 2014 model were being used, but it was subsequently
+    discovered that these parameters did not generalize perfectly to the efferent model. 
+    Here, the new parameter values are based on optimization with the efferent model (code
+    for this optimization is maintained separately in the FastPLA repository).
 5.6 (3/19/2024)
   - Fixed a poor design choice that led to lots of wasted computation in larger multichannel 
     simulations related to calculating distances between channel CFs
