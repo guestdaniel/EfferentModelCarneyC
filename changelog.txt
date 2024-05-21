@@ -1,3 +1,6 @@
+5.10 (5/21/2024)
+  - Added "moc_delay" to the parameters, which is a delay specified in seconds that is 
+    added between the final MOC gain factor and its resulting impact on BM responses.
 5.9 (5/21/2024)
   - Exposed "dur_settle" as a parameter in the model function. See model documentation for 
     details.

@@ -1,5 +1,5 @@
  /*
-  This is v5.9 of the code for subcortical auditory model model of:
+  This is v5.10 of the code for subcortical auditory model model of:
 
   Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
 
@@ -196,6 +196,8 @@
  * give the model some time to settle before gain control "kicks in" and begins influencing
  * responses. Generally, it is assumed that the acoustic waveform input to the model will
  * have a period of silence corresponding to dur_settle at the beginning before any sound.
+ * @param [in] moc_delay (s) Duration of delay before MOC signal contributes to any changes
+ * in ongoing gain factor in the peripheral stage.
  * @param [out] controlout (n_chan, totalstim) Matrix to store output of control-path filter
  * @param [out] c1out (n_chan, totalstim) Matrix to store output of signal-path C1 filter
  * @param [out] c2out (n_chan, totalstim) Matrix to store output of signal-path C2 filter
@@ -266,6 +268,7 @@ void model(
     double moc_weight_ic, 
     double moc_width_wdr,
     double dur_settle,
+    double moc_delay,
     double **controlout, 
     double **c1out, 
     double **c2out, 
@@ -506,7 +509,8 @@ void model(
     }
 
     /* Declare variables used in the subcortical stage */
-    int len_settle = (int) floor(dur_settle * 1/tdres); 
+    int len_settle = (int) round(dur_settle * 1/tdres); 
+    int len_moc_delay = (int) round(moc_delay * 1/tdres); 
 
     double cn_B_e[2], cn_A_e[3], cn_B_i[2], cn_A_i[3];
     int cn_len_delay = (int) floor(cn_delay * 1/tdres);
@@ -592,10 +596,10 @@ void model(
 
             /* Determine time constants for cochlear filters */
             Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
-            if (n == 0) {
+            if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
                 bmTaubm[c] = cohc[c]*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
-            } else {
-                bmTaubm[c] = (gain[c][n-1])*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
+            } else {                                       // Otherwise use gain[c][n - len_moc_delay]
+                bmTaubm[c] = (gain[c][n - len_moc_delay])*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
             }
             tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c]) * 
                 (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
@@ -608,9 +612,9 @@ void model(
             controlout[c][n] = NLafterohc(ohcout, bmTaumin[c], bmTaumax[c], 7.0);
 
             /* Determine time constant and shift of C1 filter poles based on output of OHCs */
-            if (n == 0) {
+            if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
                 tauc1 = cohc[c]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
-            } else {
+            } else {                                       // Otherwise use gain[c][n - len_moc_delay]
                 tauc1 = (gain[c][n-1])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
             }
             rsigma = 1/tauc1 - 1/bmTaumax[c];
@@ -1601,4 +1605,5 @@ double C2ChirpFilt(double xx, double tdres,double cf, int n, double taumax, doub
 	  
 	  return (c2filterout); 
 }   
+
 
