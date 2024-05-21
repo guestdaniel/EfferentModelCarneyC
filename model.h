@@ -44,6 +44,7 @@ void model(
     double,     // moc_weight_wdr
     double,     // moc_weight_ic
     double,     // moc_width_wdr
+    double,     // dur_settle
     // BM/IHC outputs
     double **,  // controlout
     double **,  // c1out

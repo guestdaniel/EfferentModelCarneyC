@@ -1,5 +1,5 @@
  /*
-  This is v5.8 of the code for subcortical auditory model model of:
+  This is v5.9 of the code for subcortical auditory model model of:
 
   Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
 
@@ -191,6 +191,11 @@
  * a single channel is sent to OHCs. For example, if moc_width_wdr is set to 1.0, then for a
  * given CF, the WDR-MOC gain control signal for that CF will be applied to the total gain
  * of channels within the range of [-1/2, 1/2] octaves around CF.
+ * @param [in] dur_settle (s) Duration of "settle time", during which MOC outputs are fixed
+ * at zero and no inputs are provided to the MOC lowpass filters. This is intended to 
+ * give the model some time to settle before gain control "kicks in" and begins influencing
+ * responses. Generally, it is assumed that the acoustic waveform input to the model will
+ * have a period of silence corresponding to dur_settle at the beginning before any sound.
  * @param [out] controlout (n_chan, totalstim) Matrix to store output of control-path filter
  * @param [out] c1out (n_chan, totalstim) Matrix to store output of signal-path C1 filter
  * @param [out] c2out (n_chan, totalstim) Matrix to store output of signal-path C2 filter
@@ -260,6 +265,7 @@ void model(
     double moc_weight_wdr, 
     double moc_weight_ic, 
     double moc_width_wdr,
+    double dur_settle,
     double **controlout, 
     double **c1out, 
     double **c2out, 
@@ -500,7 +506,6 @@ void model(
     }
 
     /* Declare variables used in the subcortical stage */
-    double dur_settle = 0.2; 
     int len_settle = (int) floor(dur_settle * 1/tdres); 
 
     double cn_B_e[2], cn_A_e[3], cn_B_i[2], cn_A_i[3];
