@@ -511,6 +511,9 @@ void model(
     /* Declare variables used in the subcortical stage */
     int len_settle = (int) round(dur_settle * 1/tdres); 
     int len_moc_delay = (int) round(moc_delay * 1/tdres); 
+    if (len_moc_delay == 0) {  // ensure that delay is at least one sample
+        len_moc_delay = 1;
+    }
 
     double cn_B_e[2], cn_A_e[3], cn_B_i[2], cn_A_i[3];
     int cn_len_delay = (int) floor(cn_delay * 1/tdres);
@@ -615,7 +618,7 @@ void model(
             if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
                 tauc1 = cohc[c]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
             } else {                                       // Otherwise use gain[c][n - len_moc_delay]
-                tauc1 = (gain[c][n-1])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+                tauc1 = (gain[c][n - len_moc_delay])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
             }
             rsigma = 1/tauc1 - 1/bmTaumax[c];
             tauwb[c] = TauWBMax[c] + (tauc1-bmTaumax[c]) * 
