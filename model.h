@@ -39,7 +39,7 @@ void model(
     double,     // moc_maxrate_wdr
     double,     // moc_beta_ic
     double,     // moc_offset_ic
-    double,     // moc_minrate_ic
+    double *,   // moc_minrate_ic
     double,     // moc_maxrate_ic
     double,     // moc_weight_wdr
     double,     // moc_weight_ic
