@@ -262,7 +262,7 @@ void model(
     double moc_maxrate_wdr, 
     double moc_beta_ic, 
     double moc_offset_ic, 
-    double moc_minrate_ic, 
+    double *moc_minrate_ic, 
     double moc_maxrate_ic, 
     double moc_weight_wdr, 
     double moc_weight_ic, 
@@ -747,7 +747,7 @@ void model(
                names to minimize the workload involved with renaming them.
             */
             gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight_ic * mocic[c][n] + moc_weight_wdr * mocwdr[c][n],
-                                           moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic);
+                                           moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic[c]);
 
             // /* Below, we generate gain value (in [0, 1]) for next sample */
 
