@@ -733,74 +733,39 @@ void model(
                 filter_lowpass_iir(icout[c], n, moc_d, mocic[c]);
             }
 
-            /* Below, we generate gain-factor value (in [0, 1]) for next sample.
-
-               Note that the code below temporarily replaces commented code on lines ~750+
-               Previously, we combined IC and WDR signals in a different way, with each 
-               lowpass-filtered control rate passing through its own nonlinearity and then
-               different resulting gain factors being combined via (scaled) multiplication.
-               However, an issue with that approach is that it does not clearly allow
-               the setting of a "guardrail" gain factor value that cannot be exceeded even
-               by (1) combined action of IC- and WDR-driven MOC pathways or (2) combined
-               action of multiple channels' contributions to final gain factor. Here, we've
-               temporarily eliminated the cross-frequency portion of the gain control model 
-               and are returning to calculating gain factors based only on responses in 
-               single channels while the logic of the input-output nonlinearity and multi-
-               channel gain control is worked out. The lowpass-filtered IC response and 
-               lowpass-filtered WDR response are both weighted and then summed before being
-               passed through a single joint input-output nonlinearity. For the time being,
-               the variables that enter into this calculation are retaining their historical
-               names to minimize the workload involved with renaming them. Note that 
-               moc_gain_factor allows us to "shortcircuit" the gain calculation. This will
-               leave whatever we passed in for the gain signal intact.
-            */
+            /* Below, we transform IC and WDR rates in this current channel into a 
+               "gain factor", which will influence subsequent cochlear gain. In brief,
+               lowpass-filtered IC rates (mocic) and lowpass-filtered LSR rates (mocwdr)
+               are scaled and summed before being passed through a single input-output
+               nonlinearity that maps rates (sp/s) a to gain factor in [0, 1]. 
+             */
             if (!moc_fix_gain) {
                 gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight_ic * mocic[c][n] + moc_weight_wdr * mocwdr[c][n], moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic[c]);
             }
-            gainpostmix[c][n] = gain[c][n];
 
-            // /* Below, we generate gain value (in [0, 1]) for next sample */
-
-            // /* First, calculate IC-path contribution to gain-control signal */
-            // /* To do so, we just pass the output of MOC-IC (mocic) through MOC input-output
-            // nonlinearity */
-            // gain_ic = moc_nonlinearity(moc_weight_ic * mocic[c][n], moc_beta_ic, 
-            //                            moc_offset_ic, moc_maxrate_ic, moc_minrate_ic);
-
-            // /* Next, calculate WDR-path contribution to gain-control signal */
-            // /* To do so, we initialize gain_wdr at 1.0. Then, for those channels with CFs
-            // that are less than moc_width_wdr/2 octaves away from the current channel, we
-            // pass MOC-WDR (mocwdr) outputs through the MOC input-output nonlinearity and
-            // multiply the resulting gain values together with gain_wdr */
-            // gain_wdr = 1.0;
+            /* Next, we combine gain factors across the tonotopic axis (index c). Since
+               gain factors naturally live on a log scale, we combine gain factors from 
+               different channels according to something close to a geomtric average. We
+               approximate a true geometric average by multiplying all of the gain factor
+               values and then raising the final result to 1/(n_cf_per_oct*moc_width_wdr),
+               which is roughly the number of contributing channels. The result of these
+               computations is stored in gainpostmix (i.e., gain after mixing across
+               channels).
+             */
+            for (int subc = 0; subc < n_chan; subc++) {
+                if (moc_connected[c][subc]) {
+                    gainpostmix[c][n] = gainpostmix[c][n] * gain[subc][n];
+                }
+            }
+            gainpostmix[c][n] = pow(gainpostmix[c][n], 1/(n_cf_per_oct*moc_width_wdr));
+            // gainpostmix[c][n] = pow(gainpostmix[c][n], 1/(n_cf_per_oct));
+            // int n_chan_contr = 0;
             // for (int subc = 0; subc < n_chan; subc++) {
             //     if (moc_connected[c][subc]) {
-            //         gain_wdr = gain_wdr * 
-            //             moc_nonlinearity(moc_weight_wdr * mocwdr[subc][n], moc_beta_wdr, 
-            //                              moc_offset_wdr, moc_maxrate_wdr, moc_minrate_wdr);
+            //         n_chan_contr = n_chan_contr + 1;
             //     }
             // }
-
-            // /* Normalize the WDR-driven gain factor */
-            // /* Normalization happens in one of two ways, depending on moc_width_wdr:
-            // 1) If moc_width_wdr == 0.0, then the above loop reduces to 
-            //     >>> gain_wdr = moc_nonlinearity(moc_weight_wdr * mocwdr[c][n]))
-            // i.e., each channel's gain factor is affected only by responses in that channel.
-            // Thus, we assume that no normalization should occur, so the gain_wdr value 
-            // determined by the above block is left unchanged.
-            // 2) If moc_width_wdr > 0.0, then the gain_wdr value determined above reflects
-            // contributions from multiple channels. We seek to normalize the final gain factor
-            // with respect to the number of channels that contribute. Roughly, this value is
-            // n_cf_per_oct * moc_width_wdr. If we denote this value x, we normalize by:
-            //     >>> gain_wdr = gain_wdr ^ (1/x)
-            // By raising to 1/x power, we essentially transform the computation of gain_wdr
-            // value into a geometric mean of the individual channels' gain factors. */
-            // if (moc_width_wdr > 0.0) {
-            //     gain_wdr = pow(gain_wdr, 1/(n_cf_per_oct*moc_width_wdr));
-            // }
-
-            // /* Store final gain result, which is cohc * gain_wdr * gain_ic */
-            // gain[c][n] = cohc[c] * gain_wdr * gain_ic;
+            // gainpostmix[c][n] = pow(gainpostmix[c][n], 1 / (float) n_chan_contr);                     // N3
         }
     }
 
