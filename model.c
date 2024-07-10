@@ -269,6 +269,7 @@ void model(
     double moc_width_wdr,
     double dur_settle,
     double moc_delay,
+    int moc_fix_gain,
     double **controlout, 
     double **c1out, 
     double **c2out, 
@@ -614,11 +615,19 @@ void model(
             ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2, ohc[c], ohcl[c]);
             controlout[c][n] = NLafterohc(ohcout, bmTaumin[c], bmTaumax[c], 7.0);
 
-            /* Determine time constant and shift of C1 filter poles based on output of OHCs */
-            if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
-                tauc1 = cohc[c]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
-            } else {                                       // Otherwise use gain[c][n - len_moc_delay]
-                tauc1 = (gain[c][n - len_moc_delay])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+            /* Determine time constant and shift of C1 filter poles based on output of OHCs 
+               If moc_fix_gain == true, then we simply use the gain factor specified by 
+               gain[c][n] to determine tauc1
+               If moc_fix_gain == false, we use either cohc[c] or a delayed copy of gain[c][n]
+             */
+            if (moc_fix_gain) {
+                tauc1 = gain[c][n]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+            } else {
+                if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
+                    tauc1 = cohc[c]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+                } else {                                       // Otherwise use gain[c][n - len_moc_delay]
+                    tauc1 = (gain[c][n - len_moc_delay])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+                }
             }
             rsigma = 1/tauc1 - 1/bmTaumax[c];
             tauwb[c] = TauWBMax[c] + (tauc1-bmTaumax[c]) * 
@@ -744,10 +753,13 @@ void model(
                lowpass-filtered WDR response are both weighted and then summed before being
                passed through a single joint input-output nonlinearity. For the time being,
                the variables that enter into this calculation are retaining their historical
-               names to minimize the workload involved with renaming them.
+               names to minimize the workload involved with renaming them. Note that 
+               moc_gain_factor allows us to "shortcircuit" the gain calculation. This will
+               leave whatever we passed in for the gain signal intact.
             */
-            gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight_ic * mocic[c][n] + moc_weight_wdr * mocwdr[c][n],
-                                           moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic[c]);
+            if (!moc_fix_gain) {
+                gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight_ic * mocic[c][n] + moc_weight_wdr * mocwdr[c][n], moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic[c]);
+            }
 
             // /* Below, we generate gain value (in [0, 1]) for next sample */
 

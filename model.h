@@ -46,6 +46,7 @@ void model(
     double,     // moc_width_wdr
     double,     // dur_settle
     double,     // moc_delay
+    int,        // moc_fix_gain
     // BM/IHC outputs
     double **,  // controlout
     double **,  // c1out
