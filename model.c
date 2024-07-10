@@ -288,7 +288,8 @@ void model(
     double **icout,
     double **mocwdr, 
     double **mocic, 
-    double **gain
+    double **gain,
+    double **gainpostmix
 ) {
     /* Declare pointers to store convenient references to LSR/HSR pathway stages */
     double** randNums[2] = {randNums_hsr, randNums_lsr};
@@ -620,14 +621,10 @@ void model(
                gain[c][n] to determine tauc1
                If moc_fix_gain == false, we use either cohc[c] or a delayed copy of gain[c][n]
              */
-            if (moc_fix_gain) {
-                tauc1 = gain[c][n]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
-            } else {
-                if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
-                    tauc1 = cohc[c]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
-                } else {                                       // Otherwise use gain[c][n - len_moc_delay]
-                    tauc1 = (gain[c][n - len_moc_delay])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
-                }
+            if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
+                tauc1 = cohc[c]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+            } else {                                       // Otherwise use gain[c][n - len_moc_delay]
+                tauc1 = (gainpostmix[c][n - len_moc_delay])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
             }
             rsigma = 1/tauc1 - 1/bmTaumax[c];
             tauwb[c] = TauWBMax[c] + (tauc1-bmTaumax[c]) * 
@@ -760,6 +757,7 @@ void model(
             if (!moc_fix_gain) {
                 gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight_ic * mocic[c][n] + moc_weight_wdr * mocwdr[c][n], moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic[c]);
             }
+            gainpostmix[c][n] = gain[c][n];
 
             // /* Below, we generate gain value (in [0, 1]) for next sample */
 

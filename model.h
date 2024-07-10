@@ -71,7 +71,8 @@ void model(
     // MOC outputs
     double **,  // mocwdr
     double **,  // mocic
-    double **   // gain
+    double **,  // gain
+    double **   // gainpostmix
 );
 
 /* Declare other functions */
