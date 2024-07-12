@@ -561,14 +561,15 @@ void model(
     }
 
     /* Create connectivity matrix for MOC WDR pathway
-    At the end of each step of the time loop, we must determine which MOC signals from other
-    channels are "allowed" to contribute to the gain factor calculated for the present 
-    channel. We require that the distance between the current channel and a given channel,
-    in terms of their CFs, be less than 1/2 of the paramter moc_width_wdr (in octaves). To
-    avoid overhead associated with computation of log2 on each step, we precompute a 
-    connectivity matrix that instantiates this rule and then use it in the loop below. This
-    matrix, moc_connected below, encodes whether channel i should receive MOC WDR 
-    contributions from channel j */
+       At the end of each step of the time loop, we must determine which MOC signals from
+       other channels contribute to the gain factor calculated for the present channel. We
+       require that the distance between the current channel and a given channel, in terms
+       of their CFs, be less than 1/2 of the paramter moc_width_wdr (in octaves). To avoid
+       overhead associated with computation of log2 on each step, we precompute a
+       connectivity matrix that instantiates this rule and then use it in the loop below.
+       This matrix, moc_connected below, encodes whether channel i should receive MOC WDR
+       contributions from channel j.
+     */
     int moc_connected[n_chan][n_chan];
     for (int i=0; i < n_chan; i++) {
         for (int j=0; j < n_chan; j++) {
@@ -604,7 +605,7 @@ void model(
             if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
                 bmTaubm[c] = cohc[c]*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
             } else {                                       // Otherwise use gain[c][n - len_moc_delay]
-                bmTaubm[c] = (gain[c][n - len_moc_delay])*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
+                bmTaubm[c] = (gainpostmix[c][n - len_moc_delay])*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
             }
             tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c]) * 
                 (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
@@ -742,30 +743,27 @@ void model(
             if (!moc_fix_gain) {
                 gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight_ic * mocic[c][n] + moc_weight_wdr * mocwdr[c][n], moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic[c]);
             }
+        }
 
-            /* Next, we combine gain factors across the tonotopic axis (index c). Since
-               gain factors naturally live on a log scale, we combine gain factors from 
-               different channels according to something close to a geomtric average. We
-               approximate a true geometric average by multiplying all of the gain factor
-               values and then raising the final result to 1/(n_cf_per_oct*moc_width_wdr),
-               which is roughly the number of contributing channels. The result of these
-               computations is stored in gainpostmix (i.e., gain after mixing across
-               channels).
-             */
+        /* Loop over channels/CFs again once all channels are done being calculated for this 
+           time step. In this next channel loop, we mix gain signals across channels. This
+           cannot take place until the first channel loop is done because we need access to
+           the gain factors in all channels at this time step. Since gain factors naturally
+           live on a log scale, we combine gain factors from different channels according to
+           a geometric average. The temporary variable contr is used to store the number of 
+           contributing channels to each calculation. The final result is stored in the 
+           matrix gainpostmix (i.e., gain after mixing across channels).
+         */
+        for (int c=0; c < n_chan; c++) {
+            /*              */
+            int contr = 0;
             for (int subc = 0; subc < n_chan; subc++) {
                 if (moc_connected[c][subc]) {
                     gainpostmix[c][n] = gainpostmix[c][n] * gain[subc][n];
+                    contr += 1;
                 }
             }
-            gainpostmix[c][n] = pow(gainpostmix[c][n], 1/(n_cf_per_oct*moc_width_wdr));
-            // gainpostmix[c][n] = pow(gainpostmix[c][n], 1/(n_cf_per_oct));
-            // int n_chan_contr = 0;
-            // for (int subc = 0; subc < n_chan; subc++) {
-            //     if (moc_connected[c][subc]) {
-            //         n_chan_contr = n_chan_contr + 1;
-            //     }
-            // }
-            // gainpostmix[c][n] = pow(gainpostmix[c][n], 1 / (float) n_chan_contr);                     // N3
+            gainpostmix[c][n] = pow(gainpostmix[c][n], 1 / ((float) contr));
         }
     }
 
