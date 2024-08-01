@@ -77,6 +77,7 @@ void model(
 
 /* Declare other functions */
 // model.c
+double normal_pdf(double, double, double);
 void middle_ear(double *, double, int, int, double *);
 void Get_tauwb(int, double *, int, int, double *, double *);
 void Get_taubm(int, double *, int, double *, double *, double *, double *);

@@ -743,7 +743,7 @@ void model(
             if (!moc_fix_gain) {
                 gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight_ic * mocic[c][n] + moc_weight_wdr * mocwdr[c][n], moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic[c]);
             }
-        }
+        } // End main channel loop
 
         /* Loop over channels/CFs again once all channels are done being calculated for this 
            time step. In this next channel loop, we mix gain signals across channels. This
@@ -754,18 +754,38 @@ void model(
            contributing channels to each calculation. The final result is stored in the 
            matrix gainpostmix (i.e., gain after mixing across channels).
          */
-        for (int c=0; c < n_chan; c++) {
-            /*              */
-            int contr = 0;
-            for (int subc = 0; subc < n_chan; subc++) {
-                if (moc_connected[c][subc]) {
-                    gainpostmix[c][n] = gainpostmix[c][n] * gain[subc][n];
-                    contr += 1;
+        // for (int c=0; c < n_chan; c++) {
+        //     /*              */
+        //     int contr = 0;
+        //     for (int subc = 0; subc < n_chan; subc++) {
+        //         if (moc_connected[c][subc]) {
+        //             gainpostmix[c][n] = gainpostmix[c][n] * gain[subc][n];
+        //             contr += 1;
+        //         }
+        //     }
+        //     gainpostmix[c][n] = pow(gainpostmix[c][n], 1 / ((float) contr));
+        // }
+
+        if (moc_width_wdr > 0.0) {
+            double dist = 0.0;
+            double weight = 0.0;
+            for (int c=0; c < n_chan; c++) {
+                int contr = 0;
+                double weight_total = 0.0;
+                for (int subc = 0; subc < n_chan; subc++) {
+                    dist = log2(cf[c]/cf[subc]);
+                    weight = normal_pdf(dist, 0.0, moc_width_wdr);
+                    gainpostmix[c][n] = gainpostmix[c][n] * pow(gain[subc][n], weight);
+                    weight_total = weight_total + weight;
                 }
+                gainpostmix[c][n] = pow(gainpostmix[c][n], 1 / weight_total);
             }
-            gainpostmix[c][n] = pow(gainpostmix[c][n], 1 / ((float) contr));
+        } else {
+            for (int c=0; c < n_chan; c++) {
+                gainpostmix[c][n] = gain[c][n];
+            }
         }
-    }
+    } // end main time loop
 
     /* Free dynamic memory */
     for (int i = 0; i < n_chan; i++) {
@@ -802,6 +822,21 @@ void model(
     free(C1output);
     free(C2input);
     free(C2output);
+}
+
+/**
+ * normal_pdf
+ *
+ * Return value of normal distribution probability density function at specified point
+ *
+ * @param x Input to function
+ * @param mu Mean of distribution
+ * @param sigma Standard deviation of distribution
+ */
+double normal_pdf(double x, double mu, double sigma) {
+    double var = pow(sigma, 2.0);
+    double normfac = 1/sqrt(TWOPI * var);
+    return normfac * exp(-1 * pow(x-mu, 2.0)/(2*var));
 }
 
 /**
