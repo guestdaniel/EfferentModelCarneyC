@@ -580,6 +580,28 @@ void model(
             }
         }
     }
+    /* Calculate weight matrix for MOC system
+       Below, on each time step, every channel will produce a gain-factor value based on LSR
+       (and possibly IC) rates, falling in the range (0, 1] and stored in the matrix
+       `gain[c][n]`. We refer to these gain-factor values as "premix" values, because they
+       are determined only by what is happening in the same channel. At the close of the
+       channel loop on each time step, we will then derive "postmix" gain-factor values,
+       stored in `gainpostmix[c][n]`. These values are determined by computing a weighted
+       geometric average of all channels' premix gain-factor values. Each channel has its
+       own set of weights. For an example channel i, these weights are determined by the 
+       following equation:
+           normal_pdf(d, 0.0, moc_weight_wdr)
+       where `normal_pdf` is a function that computes a normalized Gaussian function, `d` is
+       the distance between channel i and channel j CFs in octaves, and `moc_weight_wdr` is 
+       the standard deviation of the Gaussian in octaves. Below, we pre-compute these weights
+       and store them in a matrix before initiating the main time loop.
+    */
+    double moc_wb_weights[n_chan][n_chan];
+    for (int i=0; i < n_chan; i++) {
+        for (int j=0; j < n_chan; j++) {
+                moc_wb_weights[i][j] = normal_pdf(log2(cf[i]/cf[j]), 0.0, moc_width_wdr);
+        }
+    }
 
     /* Calculate middle-ear output */
     middle_ear(px, tdres, totalstim, species, meout);
@@ -773,10 +795,8 @@ void model(
                 int contr = 0;
                 double weight_total = 0.0;
                 for (int subc = 0; subc < n_chan; subc++) {
-                    dist = log2(cf[c]/cf[subc]);
-                    weight = normal_pdf(dist, 0.0, moc_width_wdr);
-                    gainpostmix[c][n] = gainpostmix[c][n] * pow(gain[subc][n], weight);
-                    weight_total = weight_total + weight;
+                    gainpostmix[c][n] = gainpostmix[c][n] * pow(gain[subc][n], moc_wb_weights[c][subc]);
+                    weight_total = weight_total + moc_wb_weights[c][subc];
                 }
                 gainpostmix[c][n] = pow(gainpostmix[c][n], 1 / weight_total);
             }
