@@ -44,6 +44,7 @@ void model(
     double,     // moc_weight_wdr
     double,     // moc_weight_ic
     double,     // moc_width_wdr
+    double *,   // moc_innerv_factor
     double,     // dur_settle
     double,     // moc_delay
     int,        // moc_fix_gain

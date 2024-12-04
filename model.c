@@ -187,6 +187,11 @@
  * @param [in] moc_weight_ic Scalar weight applied to the IC-MOC rate before it is passed
  * through the IC-MOC nonlinearity and converted into a gain value. Setting this value to
  * 0.0 disables IC-driven gain control, default is 1.0.
+ * @param [in] moc_innerv_factor Vector-valued weighting factor applied to the gain-factor
+ * computed at every time step before it's actually used to determine the instantaneous 
+ * gain. Equal in length to CF and can vary with CF to simulate the consequences of uneven 
+ * innervation of OHCs along cochlear length. Defaults to 1.0 for all channels, which 
+ * corresponds to no weighting. 
  * @param [in] moc_width_wdr (oct) Range of CFs over which WDR-MOC gain control signal from
  * a single channel is sent to OHCs. For example, if moc_width_wdr is set to 1.0, then for a
  * given CF, the WDR-MOC gain control signal for that CF will be applied to the total gain
@@ -267,6 +272,7 @@ void model(
     double moc_weight_wdr, 
     double moc_weight_ic, 
     double moc_width_wdr,
+    double *moc_innerv_factor,
     double dur_settle,
     double moc_delay,
     int moc_fix_gain,
@@ -410,6 +416,7 @@ void model(
     double beta1  = 5e-4; 
     double alpha2 = 1e-2*100e3; 
     double beta2  = 1e-1;
+    double gaininst = 0.0;
 
     /* Declare variables used in parallel-exponential PLA approximation system */
     int n_process = 40;                           // how many exponential processes in approx for PLA
@@ -622,12 +629,17 @@ void model(
                                  &wbphase[c], wbgtf[c], wbgtfl[c]);
             wbout = pow((tauwb[c]/TauWBMax[c]), 3) * wbout1 * 10e3 *__max(1, cf[c]/5e3);
 
+            /* Pre-compute scaled gain factor for this channel and time step */
+            if (!((n == 0) | (((n - len_moc_delay) < 0)))) {
+                gaininst = pow(gainpostmix[c][n-len_moc_delay], moc_innerv_factor[c]);
+            }
+
             /* Determine time constants for cochlear filters */
             Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
             if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
                 bmTaubm[c] = cohc[c]*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
             } else {                                       // Otherwise use gain[c][n - len_moc_delay]
-                bmTaubm[c] = (gainpostmix[c][n - len_moc_delay])*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
+                bmTaubm[c] = gaininst*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
             }
             tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c]) * 
                 (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
@@ -647,7 +659,7 @@ void model(
             if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
                 tauc1 = cohc[c]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
             } else {                                       // Otherwise use gain[c][n - len_moc_delay]
-                tauc1 = (gainpostmix[c][n - len_moc_delay])*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
+                tauc1 = gaininst*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
             }
             rsigma = 1/tauc1 - 1/bmTaumax[c];
             tauwb[c] = TauWBMax[c] + (tauc1-bmTaumax[c]) * 
