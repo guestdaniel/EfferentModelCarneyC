@@ -232,6 +232,8 @@ void apply_powerlaw_adaptation(double *x, double *randNums, double *I1, double *
  * @param I2 Pointer to integrator value state variable for path #2
  * @param E1 Pointer to parallel exponential process state variables for path #1
  * @param E2 Pointer to parallel exponential process state variables for path #2
+ * @param W1 Pointer to parallel exponential weights for path #1
+ * @param W2 Pointer to parallel exponential weights for path #2
  * @param d Pointer to decay-coefficient vector, size (n_process, )
  * @param n_process Number of parallel exponential processes used to approximate PLA
  * @param n Current sample index
@@ -242,8 +244,8 @@ void apply_powerlaw_adaptation(double *x, double *randNums, double *I1, double *
  * @param sout2 Output vector for path #2
  */
 void apply_powerlaw_adaptation_iir(double *x, double *randNums, double *I1, double *I2, 
-                               double *E1, double *E2,
-                               double *D1, double *D2, int n_process, int n,
+                               double *E1, double *E2, double *D1, double *D2, 
+                               double *W1, double *W2, int n_process, int n,
                                double alpha1, double alpha2, 
                                double tdres, double *sout1, double *sout2) {
     // Apply power-law adaptation
@@ -254,11 +256,11 @@ void apply_powerlaw_adaptation_iir(double *x, double *randNums, double *I1, doub
     (*I1) = 0.0; (*I2) = 0.0;
     for (int i = 0; i < n_process; i++) {
         if (n == 0) {
-            E1[i] = (1-D1[i]) * sout1[n];
-            E2[i] = (1-D2[i]) * sout2[n];
+            E1[i] = W1[i] * sout1[n];
+            E2[i] = W2[i] * sout2[n];
         } else {
-            E1[i] = (1-D1[i]) * sout1[n] + D1[i] * E1[i];
-            E2[i] = (1-D2[i]) * sout2[n] + D2[i] * E2[i];
+            E1[i] = W1[i] * sout1[n] + (1-D1[i]) * E1[i];
+            E2[i] = W2[i] * sout2[n] + (1-D2[i]) * E2[i];
         }
         (*I1) += E1[i];
         (*I2) += E2[i];

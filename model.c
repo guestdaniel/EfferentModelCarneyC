@@ -1,5 +1,5 @@
  /*
-  This is v5.10 of the code for subcortical auditory model model of:
+  This is v5.12 of the code for subcortical auditory model model of:
 
   Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
 
@@ -28,7 +28,14 @@
   simulation options for a model of the auditory periphery. The Journal of the Acoustical 
   Society of America, 135(1), 283-286.
 
-  * Farhadi, ... (2023) ... TBD
+  * Farhadi, A., Jennings, S. G., Strickland, E. A., and Carney, L. H. (2023). “Subcortical 
+  auditory model including efferent dynamic gain control with inputs from cochlear nucleus 
+  and inferior colliculus,” The Journal of the Acoustical Society of America, 154, 
+  3644–3659. doi:10.1121/10.0022578
+
+  * Guest, D. R., and Carney, L. H. (2024). “A fast and accurate approximation of power-law 
+  adaptation for auditory computational models,” The Journal of the Acoustical Society of 
+  America, 156, 3954–3957. doi:10.1121/10.0034457
 
   The peripheral stage was modified by Afagh Farhadi to include a sample-by-sample efferent 
   gain control loop, which is controlled by an auditory brainstem and midbrain model 
@@ -418,14 +425,26 @@ void model(
     double beta2  = 1e-1;
     double gaininst = 0.0;
 
-    /* Declare variables used in parallel-exponential PLA approximation system */
-    int n_process = 40;                           // how many exponential processes in approx for PLA
-    double coef_slow = 3.42e-2 * (100.0/40.0);    // scalar coefficient used in approx for sout1
-    double tau_short_slow = 6.97e-4;              // short time constant used in approx for sout1
-    double tau_long_slow = 9.56e2;                // long time constant used in approx for sout1
-    double coef_fast = 1.45e2 * (100.0/40.0);     // scalar coefficient used in approx for sout2
-    double tau_short_fast = 9.49e-2;              // short time constant used in approx for sout2
-    double tau_long_fast = 9.81e5;                // long time constant used in approx for sout2
+    /* Select n_process, tau, and w from Guest and Carney (2024) for PLA approximation */
+    int n_process = 14;  
+    double tau_slow[14];
+    double tau_fast[14];
+    for (int i = 0; i < 14; i++) {
+        tau_slow[i] = 5e-4 * pow(10.0, 1/exp(1.0) * i);
+        tau_fast[i] = 1e-1 * pow(10.0, 1/exp(1.0) * i);
+    }
+    double w_slow[14] = {
+        1054.1349144510866, 235.42021095822022, 351.3091743124357, 99.00123234954474, 
+        55.18423650003196, 28.99454378212968, 6.556134147763605, 6.558380224204848, 
+        1.1576087874250394, 0.995488845827021, 0.3588672871386332, 0.1573449044190812, 
+        0.010428823220777147, 0.08773889583510958
+    };
+    double w_fast[14] = {
+        6.106637716398411, 1.1558964083697898, 1.3095958543425545, 0.785695677692722, 
+        0.21835528692662018, 0.10344785429373701, 0.08413927488982781, 0.001596356536824024, 
+        0.018886711336962816, 0.0008089617759213521, 0.002806098243601203, 0.0006529927704604911, 
+        3.13953727422695e-5, 0.0004490670084957763
+    };
 
     /* Declare other variables used in the AN stage (all vary by channel/fiber type) */
     int n_fiber_type = 2;  // HSR==0, LSR==1
@@ -486,33 +505,16 @@ void model(
     }
 
     /* Calculate parameters for approximate power-law adaptation (sout1) */
-    double delta = (log(tau_long_slow) - log(tau_short_slow)) / (n_process - 1);
-    double tau_temp = 0.0;
     for (int t = 0; t < n_fiber_type; t++) {
         for (int i = 0; i < n_chan; i++) {
             for (int p = 0; p < n_process; p++) {
                 // Initialize exponential process states at 0
                 E1[t][i][p] = 0.0;
-
-                // Determine time constant for this step, convert to decay coef and save
-                tau_temp = exp(log(tau_short_slow) + delta * p);
-                D1[t][i][p] = exp(-(1/(1/tdres)) / tau_temp);
-            }
-        }
-    }
-
-    /* Calculate parameters for approximate power-law adaptation (sout2) */
-    delta = (log(tau_long_fast) - log(tau_short_fast)) / (n_process - 1);
-    tau_temp = 0.0;
-    for (int t = 0; t < n_fiber_type; t++) {
-        for (int i = 0; i < n_chan; i++) {
-            for (int p = 0; p < n_process; p++) {
-                // Initialize exponential process states at 0
                 E2[t][i][p] = 0.0;
 
                 // Determine time constant for this step, convert to decay coef and save
-                tau_temp = exp(log(tau_short_fast) + delta * p);
-                D2[t][i][p] = exp(-(1/(1/tdres)) / tau_temp);
+                D1[t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_fast[p]);
+                D2[t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_slow[p]);
             }
         }
     }
@@ -708,8 +710,8 @@ void model(
                                             sout1[t][c], sout2[t][c]);
                 } else if (powerlaw_mode == 2) {
                     apply_powerlaw_adaptation_iir(expout[t][c], randNums[t][c], &I1[t][c],
-                        &I2[t][c], E1[t][c], E2[t][c], D1[t][c], D2[t][c], n_process, n,
-                        coef_slow, coef_fast, tdres, sout1[t][c], sout2[t][c]);
+                        &I2[t][c], E1[t][c], E2[t][c], D1[t][c], D2[t][c], w_slow, w_fast, n_process, n,
+                        alpha1, alpha2, tdres, sout1[t][c], sout2[t][c]);
                 }
                 synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
 
