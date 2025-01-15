@@ -425,6 +425,14 @@ void model(
     double beta2  = 1e-1;
     double gaininst = 0.0;
 
+    /* Tweak alpha1 and alpha2 to get PLA to match, we have to compensate for fs and scale differences */
+    if (powerlaw_mode == 2) {
+        alpha1 = alpha1 / 10e3;  // this was done in updated Synapse code, weights are referenced to that implementation so we have to match
+        alpha2 = alpha2 / 10e3;  // this was done in updated Synapse code, weights are referenced to that implementation so we have to match
+        alpha1 = alpha1 * (tdres / (1/10e3));  // reduce weights by factor of fs/10e3 to compensate for computing more samples
+        alpha2 = alpha2 * (tdres / (1/10e3));  // reduce weights by factor of fs/10e3 to compensate for computing more samples
+    }
+
     /* Select n_process, tau, and w from Guest and Carney (2024) for PLA approximation */
     int n_process = 14;  
     double tau_slow[14];
@@ -513,8 +521,8 @@ void model(
                 E2[t][i][p] = 0.0;
 
                 // Determine time constant for this step, convert to decay coef and save
-                D1[t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_fast[p]);
-                D2[t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_slow[p]);
+                D1[t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_slow[p]);
+                D2[t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_fast[p]);
             }
         }
     }
