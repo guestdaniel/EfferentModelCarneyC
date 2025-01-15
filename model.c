@@ -559,36 +559,7 @@ void model(
 
     /* Calculate variables for the MOC stage */
     double moc_d = exp(-TWOPI * (moc_cutoff/(1/tdres)));
-    double gain_ic = 0.0;
-    double gain_wdr = 0.0;
-    int n_chan_incl = 0;
-    double n_cf_per_oct = 0.0; 
-    if (n_chan == 1) {
-        n_cf_per_oct = 1.0;
-    } else {
-        n_cf_per_oct = n_chan/(log2(cf[n_chan-1]) - log2(cf[0]));
-    }
 
-    /* Create connectivity matrix for MOC WDR pathway
-       At the end of each step of the time loop, we must determine which MOC signals from
-       other channels contribute to the gain factor calculated for the present channel. We
-       require that the distance between the current channel and a given channel, in terms
-       of their CFs, be less than 1/2 of the paramter moc_width_wdr (in octaves). To avoid
-       overhead associated with computation of log2 on each step, we precompute a
-       connectivity matrix that instantiates this rule and then use it in the loop below.
-       This matrix, moc_connected below, encodes whether channel i should receive MOC WDR
-       contributions from channel j.
-     */
-    int moc_connected[n_chan][n_chan];
-    for (int i=0; i < n_chan; i++) {
-        for (int j=0; j < n_chan; j++) {
-            if ( fabs(log2(cf[i]) - log2(cf[j])) <= (moc_width_wdr/2) ) {
-                moc_connected[i][j] = 1;
-            } else {
-                moc_connected[i][j] = 0;
-            }
-        }
-    }
     /* Calculate weight matrix for MOC system
        Below, on each time step, every channel will produce a gain-factor value based on LSR
        (and possibly IC) rates, falling in the range (0, 1] and stored in the matrix
@@ -803,10 +774,7 @@ void model(
         // }
 
         if (moc_width_wdr > 0.0) {
-            double dist = 0.0;
-            double weight = 0.0;
             for (int c=0; c < n_chan; c++) {
-                int contr = 0;
                 double weight_total = 0.0;
                 for (int subc = 0; subc < n_chan; subc++) {
                     gainpostmix[c][n] = gainpostmix[c][n] * pow(gain[subc][n], moc_wb_weights[c][subc]);
