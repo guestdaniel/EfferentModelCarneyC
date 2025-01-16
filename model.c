@@ -359,18 +359,18 @@ void model(
         C1gain_norm[i] = 0.0;
         C1initphase[i] = 0.0;
     }
-    double*** C1input = (double***) malloc(n_chan * sizeof(double**));
+    double*** C1input = (double***) calloc(n_chan * sizeof(double**));
     for (int i = 0; i < n_chan; i++) {
-        C1input[i] = (double**) malloc(12 * sizeof(double*));
+        C1input[i] = (double**) calloc(12 * sizeof(double*));
         for (int j = 0; j < 12; j++) {
-            C1input[i][j] = (double*) malloc(4 * sizeof(double));
+            C1input[i][j] = (double*) calloc(4 * sizeof(double));
         }
     }
-    double*** C1output = (double***) malloc(n_chan * sizeof(double**));
+    double*** C1output = (double***) calloc(n_chan * sizeof(double**));
     for (int i = 0; i < n_chan; i++) {
-        C1output[i] = (double**) malloc(12 * sizeof(double*));
+        C1output[i] = (double**) calloc(12 * sizeof(double*));
         for (int j = 0; j < 12; j++) {
-            C1output[i][j] = (double*) malloc(4 * sizeof(double));
+            C1output[i][j] = (double*) calloc(4 * sizeof(double));
         }
     }
     for (int i = 0; i < n_chan; i++) {
@@ -388,18 +388,18 @@ void model(
         C2gain_norm[i] = 0.0;
         C2initphase[i] = 0.0;
     }
-    double*** C2input = (double***) malloc(n_chan * sizeof(double**));
+    double*** C2input = (double***) calloc(n_chan * sizeof(double**));
     for (int i = 0; i < n_chan; i++) {
-        C2input[i] = (double**) malloc(12 * sizeof(double*));
+        C2input[i] = (double**) calloc(12 * sizeof(double*));
         for (int j = 0; j < 12; j++) {
-            C2input[i][j] = (double*) malloc(4 * sizeof(double));
+            C2input[i][j] = (double*) calloc(4 * sizeof(double));
         }
     }
-    double*** C2output = (double***) malloc(n_chan * sizeof(double**));
+    double*** C2output = (double***) calloc(n_chan * sizeof(double**));
     for (int i = 0; i < n_chan; i++) {
-        C2output[i] = (double**) malloc(12 * sizeof(double*));
+        C2output[i] = (double**) calloc(12 * sizeof(double*));
         for (int j = 0; j < 12; j++) {
-            C2output[i][j] = (double*) malloc(4 * sizeof(double));
+            C2output[i][j] = (double*) calloc(4 * sizeof(double));
         }
     }
     for (int i = 0; i < n_chan; i++) {
