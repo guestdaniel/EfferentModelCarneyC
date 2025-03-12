@@ -33,18 +33,12 @@ void model(
     double,     // ic_inh
     // MOC parameters
     double,     // moc_cutoff
-    double,     // moc_beta_wdr
-    double,     // moc_offset_wdr
-    double,     // moc_minrate_wdr
-    double,     // moc_maxrate_wdr
-    double,     // moc_beta_ic
-    double,     // moc_offset_ic
-    double *,   // moc_minrate_ic
-    double,     // moc_maxrate_ic
-    double,     // moc_weight_wdr
-    double,     // moc_weight_ic
-    double,     // moc_width_wdr
-    double *,   // moc_innerv_factor
+    double,     // moc_beta
+    double,     // moc_offset
+    double,     // moc_minval
+    double,     // moc_maxval
+    double,     // moc_weight
+    double,     // moc_width
     double,     // dur_settle
     double,     // moc_delay
     int,        // moc_fix_gain

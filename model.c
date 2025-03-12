@@ -1,5 +1,5 @@
  /*
-  This is v5.12 of the code for subcortical auditory model model of:
+  This is v6.00 of the code for subcortical auditory model model of:
 
   Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
 
@@ -166,43 +166,25 @@
  * @param [in] moc_cutoff (Hz) Cutoff value for the simple IIR lowpass filter that is used
  * to lowpass filter MOC input signals before applying the MOC nonlinearity, default value
  * is 0.64 Hz
- * @param [in] moc_beta_wdr Control parameter in the WDR-MOC nonlinearity, governs the slope
+ * ///// START EXPERIMENTAL NEW MOC PARAMETERS /////
+ * @param [in] moc_beta Parameter in the WDR-MOC nonlinearity, governs the slope
  * of the nonlinearity such that smaller values yield more gradual slopes between MOC rate
  * and MOC output gain while larger values yield sharper slopes between MOC rate and MOC
- * output gain, default value is 0.01
- * @param [in] moc_offset_wdr (sp/s) Control parameter in the WDR-MOC nonlinearity, shifts
- * the nonlinearity along the x-axis such that gain control is not applied until the WDR-MOC
- * rate exceeds the offset, default value is 0.0
- * @param [in] moc_minrate_wdr Minimum output value for the WDR-MOC nonlinearity, should be
+ * output gain, default value is 0.015 (per ARO2024 / HWK2024)
+ * @param [in] moc_offset (sp/s) Parameter in the WDR-MOC nonlinearity, shifts the
+ * nonlinearity along the x-axis such that gain control is not applied until the *weighted*
+ * WDR-MOC rate exceeds the offset, default value is 0.0
+ * @param [in] moc_minval Minimum output value for the WDR-MOC nonlinearity, should be
  * in range of [0, 1], default is 0.0
- * @param [in] moc_maxrate_wdr Maximum output value for the WDR-MOC nonlinearity, should be
+ * @param [in] moc_maxval Maximum output value for the WDR-MOC nonlinearity, should be
  * in range of [0, 1], default is 1.0
- * @param [in] moc_beta_ic Control parameter in the IC-MOC nonlinearity, governs the slope
- * of the nonlinearity such that smaller values yield more gradual slopes between MOC rate
- * and MOC output gain while larger values yield sharper slopes between MOC rate and MOC
- * output gain, default value is 0.01
- * @param [in] moc_offset_ic (sp/s) Control parameter in the IC-MOC nonlinearity, shifts the
- * nonlinearity along the x-axis such that gain control is not applied until the IC-MOC rate
- * exceeds the offset, default value is 0.0
- * @param [in] moc_minrate_ic Minimum output value for the IC-MOC nonlinearity, should be in
- * range of [0, 1], default is 0.0
- * @param [in] moc_maxrate_ic Maximum output value for the IC-MOC nonlinearity, should be in
- * range of [0, 1], default is 1.0
- * @param [in] moc_weight_wdr Scalar weight applied to the WDR-MOC rate before it is passed
+ * @param [in] moc_weight Weight applied to the WDR-MOC rate before it is passed
  * through the WDR-MOC nonlinearity and converted into a gain value. Setting this value to
  * 0.0 disables WDR-driven gain control, default is 1.0.
- * @param [in] moc_weight_ic Scalar weight applied to the IC-MOC rate before it is passed
- * through the IC-MOC nonlinearity and converted into a gain value. Setting this value to
- * 0.0 disables IC-driven gain control, default is 1.0.
- * @param [in] moc_innerv_factor Vector-valued weighting factor applied to the gain-factor
- * computed at every time step before it's actually used to determine the instantaneous 
- * gain. Equal in length to CF and can vary with CF to simulate the consequences of uneven 
- * innervation of OHCs along cochlear length. Defaults to 1.0 for all channels, which 
- * corresponds to no weighting. 
- * @param [in] moc_width_wdr (oct) Range of CFs over which WDR-MOC gain control signal from
- * a single channel is sent to OHCs. For example, if moc_width_wdr is set to 1.0, then for a
- * given CF, the WDR-MOC gain control signal for that CF will be applied to the total gain
- * of channels within the range of [-1/2, 1/2] octaves around CF.
+ * @param [in] moc_width (oct) Range of CFs over which MOC gain control signal from
+ * a single channel is sent to OHCs. This is parametrized in terms of the standard deviation
+ * of a Gaussian weighting function centered at CF.
+ *  * ///// STOP EXPERIMENTAL NEW MOC PARAMETERS /////
  * @param [in] dur_settle (s) Duration of "settle time", during which MOC outputs are fixed
  * at zero and no inputs are provided to the MOC lowpass filters. This is intended to 
  * give the model some time to settle before gain control "kicks in" and begins influencing
@@ -268,18 +250,12 @@ void model(
     double ic_amp, 
     double ic_inh,
     double moc_cutoff, 
-    double moc_beta_wdr, 
-    double moc_offset_wdr, 
-    double moc_minrate_wdr, 
-    double moc_maxrate_wdr, 
-    double moc_beta_ic, 
-    double moc_offset_ic, 
-    double *moc_minrate_ic, 
-    double moc_maxrate_ic, 
-    double moc_weight_wdr, 
-    double moc_weight_ic, 
-    double moc_width_wdr,
-    double *moc_innerv_factor,
+    double moc_beta, 
+    double moc_offset, 
+    double moc_minval,
+    double moc_maxval,
+    double moc_weight, 
+    double moc_width,
     double dur_settle,
     double moc_delay,
     int moc_fix_gain,
@@ -577,26 +553,6 @@ void model(
         n_cf_per_oct = n_chan/(log2(cf[n_chan-1]) - log2(cf[0]));
     }
 
-    /* Create connectivity matrix for MOC WDR pathway
-       At the end of each step of the time loop, we must determine which MOC signals from
-       other channels contribute to the gain factor calculated for the present channel. We
-       require that the distance between the current channel and a given channel, in terms
-       of their CFs, be less than 1/2 of the paramter moc_width_wdr (in octaves). To avoid
-       overhead associated with computation of log2 on each step, we precompute a
-       connectivity matrix that instantiates this rule and then use it in the loop below.
-       This matrix, moc_connected below, encodes whether channel i should receive MOC WDR
-       contributions from channel j.
-     */
-    int moc_connected[n_chan][n_chan];
-    for (int i=0; i < n_chan; i++) {
-        for (int j=0; j < n_chan; j++) {
-            if ( fabs(log2(cf[i]) - log2(cf[j])) <= (moc_width_wdr/2) ) {
-                moc_connected[i][j] = 1;
-            } else {
-                moc_connected[i][j] = 0;
-            }
-        }
-    }
     /* Calculate weight matrix for MOC system
        Below, on each time step, every channel will produce a gain-factor value based on LSR
        (and possibly IC) rates, falling in the range (0, 1] and stored in the matrix
@@ -616,7 +572,7 @@ void model(
     double moc_wb_weights[n_chan][n_chan];
     for (int i=0; i < n_chan; i++) {
         for (int j=0; j < n_chan; j++) {
-                moc_wb_weights[i][j] = normal_pdf(log2(cf[i]/cf[j]), 0.0, moc_width_wdr);
+                moc_wb_weights[i][j] = normal_pdf(log2(cf[i]/cf[j]), 0.0, moc_width);
         }
     }
 
@@ -641,7 +597,7 @@ void model(
 
             /* Pre-compute scaled gain factor for this channel and time step */
             if (!((n == 0) | (((n - len_moc_delay) < 0)))) {
-                gaininst = pow(gainpostmix[c][n-len_moc_delay], moc_innerv_factor[c]);
+                gaininst = gainpostmix[c][n-len_moc_delay];
             }
 
             /* Determine time constants for cochlear filters */
@@ -785,7 +741,7 @@ void model(
                nonlinearity that maps rates (sp/s) a to gain factor in [0, 1]. 
              */
             if (!moc_fix_gain) {
-                gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight_ic * mocic[c][n] + moc_weight_wdr * mocwdr[c][n], moc_beta_ic, moc_offset_ic, moc_maxrate_ic, moc_minrate_ic[c]);
+                gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight * mocwdr[c][n], moc_beta, moc_offset, moc_maxval, moc_minval);
             }
         } // End main channel loop
 
@@ -798,19 +754,7 @@ void model(
            contributing channels to each calculation. The final result is stored in the 
            matrix gainpostmix (i.e., gain after mixing across channels).
          */
-        // for (int c=0; c < n_chan; c++) {
-        //     /*              */
-        //     int contr = 0;
-        //     for (int subc = 0; subc < n_chan; subc++) {
-        //         if (moc_connected[c][subc]) {
-        //             gainpostmix[c][n] = gainpostmix[c][n] * gain[subc][n];
-        //             contr += 1;
-        //         }
-        //     }
-        //     gainpostmix[c][n] = pow(gainpostmix[c][n], 1 / ((float) contr));
-        // }
-
-        if (moc_width_wdr > 0.0) {
+        if (moc_width > 0.0) {
             for (int c=0; c < n_chan; c++) {
                 double weight_total = 0.0;
                 for (int subc = 0; subc < n_chan; subc++) {
