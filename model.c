@@ -811,10 +811,7 @@ void model(
         // }
 
         if (moc_width_wdr > 0.0) {
-            double dist = 0.0;
-            double weight = 0.0;
             for (int c=0; c < n_chan; c++) {
-                int contr = 0;
                 double weight_total = 0.0;
                 for (int subc = 0; subc < n_chan; subc++) {
                     gainpostmix[c][n] = gainpostmix[c][n] * pow(gain[subc][n], moc_wb_weights[c][subc]);
