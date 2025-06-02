@@ -178,9 +178,10 @@
  * in range of [0, 1], default is 0.0
  * @param [in] moc_maxval Maximum output value for the WDR-MOC nonlinearity, should be
  * in range of [0, 1], default is 1.0
- * @param [in] moc_weight Weight applied to the WDR-MOC rate before it is passed
+ * @param [in] moc_weight (n_chan, 1) Weight applied to the WDR-MOC rate before it is passed
  * through the WDR-MOC nonlinearity and converted into a gain value. Setting this value to
- * 0.0 disables WDR-driven gain control, default is 1.0.
+ * 0.0 disables WDR-driven gain control. This is a vector-valued parameter where each
+ * element is applied to weight responses from the corresponding CF.
  * @param [in] moc_width (oct) Range of CFs over which MOC gain control signal from
  * a single channel is sent to OHCs. This is parametrized in terms of the standard deviation
  * of a Gaussian weighting function centered at CF.
@@ -254,7 +255,7 @@ void model(
     double moc_offset, 
     double moc_minval,
     double moc_maxval,
-    double moc_weight, 
+    double *moc_weight, 
     double moc_width,
     double dur_settle,
     double moc_delay,
@@ -741,7 +742,7 @@ void model(
                nonlinearity that maps rates (sp/s) a to gain factor in [0, 1]. 
              */
             if (!moc_fix_gain) {
-                gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight * mocwdr[c][n], moc_beta, moc_offset, moc_maxval, moc_minval);
+                gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight[c] * mocwdr[c][n], moc_beta, moc_offset, moc_maxval, moc_minval);
             }
         } // End main channel loop
 
@@ -902,7 +903,7 @@ double moc_nonlinearity(double x, double beta, double offset, double maxrate,
     if (x < offset) {
         return maxrate;
     } else {
-        return ((maxrate-minrate) * 1.0/(1.0 + pow(beta*(x-offset), 2.0))) + minrate;
+        return ((maxrate-minrate) * 1.0/(1.0 + pow(beta*(x-offset), 2.0))) + minrate; // remove 1.0
     }
 }
 

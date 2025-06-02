@@ -37,7 +37,7 @@ void model(
     double,     // moc_offset
     double,     // moc_minval
     double,     // moc_maxval
-    double,     // moc_weight
+    double *,   // moc_weight
     double,     // moc_width
     double,     // dur_settle
     double,     // moc_delay
