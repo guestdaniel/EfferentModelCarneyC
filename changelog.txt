@@ -1,3 +1,5 @@
+6.1 (6/2/2025)
+  - Added optional lookup table (LUT) to approximate MOC input-output nonlinearity
 6.0 (6/2/2025)
   - Revised the formulation of multi-channel gain-factor calculation. Previously, the system
     was somewhat convoluted, incorporating an overall MOC weight with a channel-by-channel

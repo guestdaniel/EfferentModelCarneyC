@@ -42,6 +42,7 @@ void model(
     double,     // dur_settle
     double,     // moc_delay
     int,        // moc_fix_gain
+    int,        // moc_use_lut
     // BM/IHC outputs
     double **,  // controlout
     double **,  // c1out
@@ -72,6 +73,8 @@ void model(
 
 /* Declare other functions */
 // model.c
+void generate_lookup_table(float, float, float, float, float);
+float lookup_moc_io(float);
 double normal_pdf(double, double, double);
 void middle_ear(double *, double, int, int, double *);
 void Get_tauwb(int, double *, int, int, double *, double *);

@@ -1,5 +1,5 @@
  /*
-  This is v6.00 of the code for subcortical auditory model model of:
+  This is v6.10 of the code for subcortical auditory model model of:
 
   Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
 
@@ -50,6 +50,7 @@
   Git commit history. 
 */
 
+// Original file header
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -71,6 +72,77 @@
 #ifndef __min
 #define __min(a,b) (((a) < (b))? (a): (b))
 #endif
+
+// Lookup table stuff
+static int moc_lut_size = 1024;
+static float moc_lut[1024];
+static float moc_lut_x_min_val = 0.0;
+static float moc_lut_x_max_val = 10.0;
+static float moc_lut_dx_inv;
+
+/**
+ * Generates the lookup table for MOC input-output nonlinearity
+ * 
+ * @param ... see `moc_nonlinearity` for meaning of input parameters to f(x)
+ */
+void generate_lookup_table(
+    float beta, 
+    float offset, 
+    float maxval, 
+    float minval,
+    float weight
+) {
+    // Adjust moc_lut_x_min_val and moc_lut_x_max_val to match expected input range
+    moc_lut_x_min_val = 0.0;
+    moc_lut_x_max_val = weight*40.0;  // typical MOCWDR rates cap out around 40 sp/s?
+
+    // Determine dx over range for LUT 
+    float dx = (moc_lut_x_max_val - moc_lut_x_min_val) / (float)(moc_lut_size - 1);
+    moc_lut_dx_inv = 1.0f / dx;
+
+    // Loop over LUT bins and fill in value
+    for (int i = 0; i < moc_lut_size; ++i) {
+        float current_x = moc_lut_x_min_val + (float)i * dx;
+        moc_lut[i] = moc_nonlinearity(current_x, beta, offset, maxval, minval);
+   }
+}
+
+/**
+ * Approximates MOC input-output nonlinearity using LUT with linear interpolation
+ *
+ * @param x The input value for which to approximate f(x).
+ * @return The approximated value of f(x).
+ */
+float lookup_moc_io(float x) {
+    // Handle out-of-bounds cases 
+    if (x <= moc_lut_x_min_val) {
+        return moc_lut[0];
+    }
+    if (x >= moc_lut_x_max_val) {
+        return moc_lut[moc_lut_size - 1];
+    }
+
+    // Calculate the floating-point index in the table
+    // This maps x from [moc_lut_x_min_val, moc_lut_x_max_val] to [0, moc_lut_size - 1]
+    float relative_pos = (x - moc_lut_x_min_val) * moc_lut_dx_inv;
+
+    // Get the lower integer index and the fraction for interpolation
+    int index_low = (int) floorf(relative_pos);
+    float fraction = relative_pos - (float) index_low;
+
+    // Ensure indices are within bounds (though prior checks should handle extremes)
+    // This check is mostly for safety if relative_pos is exactly LUT_SIZE - 1.
+    if (index_low >= (moc_lut_size - 1)) {
+        return moc_lut[moc_lut_size - 1];
+    }
+
+    // Perform linear interpolation
+    int index_high = index_low + 1;
+    float val_low = moc_lut[index_low];
+    float val_high = moc_lut[index_high];
+
+    return val_low + fraction * (val_high - val_low);
+}
 
 /**
  * model
@@ -260,6 +332,7 @@ void model(
     double dur_settle,
     double moc_delay,
     int moc_fix_gain,
+    int moc_use_lut,
     double **controlout, 
     double **c1out, 
     double **c2out, 
@@ -281,6 +354,15 @@ void model(
     double **gain,
     double **gainpostmix
 ) {
+    /* Pre-compute LUT for MOC input-output nonlinearity */
+    float moc_max_weight = 0.0;
+    for (int i = 0; i < n_chan; i++) {
+        if (moc_weight[i] > moc_max_weight) {
+            moc_max_weight = moc_weight[i];
+        }
+    }
+    generate_lookup_table(moc_beta, moc_offset, moc_maxval, moc_minval, moc_max_weight);
+
     /* Declare pointers to store convenient references to LSR/HSR pathway stages */
     double** randNums[2] = {randNums_hsr, randNums_lsr};
     double** expout[2] = {expout_hsr, expout_lsr};
@@ -742,7 +824,11 @@ void model(
                nonlinearity that maps rates (sp/s) a to gain factor in [0, 1]. 
              */
             if (!moc_fix_gain) {
-                gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight[c] * mocwdr[c][n], moc_beta, moc_offset, moc_maxval, moc_minval);
+                if (moc_use_lut) {
+                    gain[c][n] = cohc[c] * lookup_moc_io(moc_weight[c] * mocwdr[c][n]);
+                } else {
+                    gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight[c] * mocwdr[c][n], moc_beta, moc_offset, moc_maxval, moc_minval);
+                }
             }
         } // End main channel loop
 
