@@ -2,3 +2,8 @@
 *.so
 *.swp
 test.jl
+*.gcda
+*.gcno
+*.gcov
+*.exe
+*.out
