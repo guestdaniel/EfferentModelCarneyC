@@ -251,8 +251,8 @@ void model(
     double ic_amp, 
     double ic_inh,
     double moc_cutoff, 
-    double moc_beta, 
-    double moc_offset, 
+    double *moc_beta, 
+    double *moc_offset, 
     double moc_minval,
     double moc_maxval,
     double *moc_weight, 
@@ -742,7 +742,7 @@ void model(
                nonlinearity that maps rates (sp/s) a to gain factor in [0, 1]. 
              */
             if (!moc_fix_gain) {
-                gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight[c] * mocwdr[c][n], moc_beta, moc_offset, moc_maxval, moc_minval);
+                gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight[c] * mocwdr[c][n], moc_beta[c], moc_offset[c], moc_maxval, moc_minval);
             }
         } // End main channel loop
 
