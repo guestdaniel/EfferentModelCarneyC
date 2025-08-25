@@ -1,9 +1,13 @@
-6.0 (6/2/2025)
+6.0 (8/25/2025)
   - Revised the formulation of multi-channel gain-factor calculation. Previously, the system
     was somewhat convoluted, incorporating an overall MOC weight with a channel-by-channel
     "innervation factor" and a gain-mixing kernel; now, every channel has its own MOC weight
     (so MOC weight is vector-valued) and gain factors are smoothed across CF using a 
     log-frequency Gaussian smoothing kernel. The "innervation factor" system has been removed.
+    Parameter `moc_weight` is vector-valued but unused, parameters `moc_beta` and `moc_offset`
+    are now vector-valued and apply to the WDR pathway implicitly. The IC pathway is
+    effectively disabled for the time being and only the WDR pathway plays a role in 
+    efferent responses. 
 5.12 (1/7/2025)
   - Updated PLA approximation parameters now that Guest and Carney (2024) JASA letter is 
     published with n_process and parameters suggestions.
