@@ -1,3 +1,11 @@
+7.0 (3/6/2026)
+  - Modified model function to accept two sound pressure waveforms, one for each ear, to
+    simulate binaural responses. 
+  - Modified the types of many other input variables and internal state variables to 
+    accomodate binaural simulations. 
+  - Modified internal loops and calculations to perform binaural simulations.
+  - Modified model function to output matrices of shape (2, n_chan, totalstim) instead of
+    (n_chan, totalstim) to accommodate binaural simulation.
 6.0 (8/25/2025)
   - Revised the formulation of multi-channel gain-factor calculation. Previously, the system
     was somewhat convoluted, incorporating an overall MOC weight with a channel-by-channel

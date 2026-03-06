@@ -1,7 +1,7 @@
  /*
-  This is v6.00 of the code for subcortical auditory model model of:
+  This is v7.00 of the code for subcortical auditory model model of:
 
-  Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
+  Guest, D. R. and Carney, L. H. (202x). ...
 
   The peripheral stage of this model is derived from the following work, listed in 
   chronological order:
@@ -37,11 +37,14 @@
   adaptation for auditory computational models,” The Journal of the Acoustical Society of 
   America, 156, 3954–3957. doi:10.1121/10.0034457
 
+  * Guest, D. R., Farhadi, A., Carney, L. H. (2026). “Title TBD,” in revision
+
   The peripheral stage was modified by Afagh Farhadi to include a sample-by-sample efferent 
   gain control loop, which is controlled by an auditory brainstem and midbrain model 
   included in this code. This efferent model was modified by Daniel Guest to allow for 
   "crosstalk" between different channels (i.e., efferent responses in one channel can 
-  affect gain in others).
+  affect gain in others), and to make the model binaural (so that binaural efferent reflexes
+  can be simulated.)
 
   Please cite these papers marked with asterisks (*) if you publish any research results 
   obtained with this code or any modified versions of this code.
@@ -83,11 +86,11 @@
  * model described in [[cite]].
  *
  * Arguments to the model function are structured and ordered in the following way:
- * - Inputs are passed as pointers to arrays or matrices of double-precision floating-point
+ * - Inputs are passed as pointers to arrays of double-precision floating-point
  *   numbers
  * - Parameters are next passed as doubles, integers, and pointers to arrays of doubles.
  *   These parameters govern the behavior of the model.
- * - Outputs are passed as pointers to matrices of doubles. These matrices are modified
+ * - Outputs are passed as pointers to arrays of doubles. These arrays are modified
  *   in-place by the model function (i.e., changes will be visible to the caller) and are
  *   treated as "returns"
  *
@@ -101,9 +104,10 @@
  * indicates the size (if a vector or a matrix), and (unit) indicates the unit of the
  * argument (e.g., Hz) if it has a unit.  
  *
- * In all cases, matrices should have their first dimension equal in length to the number of
- * simulated channels (n_chan) and their second dimension equal to the number of simulated
- * time samples (totalstim). The sizes of other inputs/parameters are described below.
+ * In most cases, arrays should have their first dimension of length 2 (left ear, right ear),
+ * their second dimension equal in length to the number of simulated channels (n_chan),
+ * and their second dimension equal to the number of simulated time samples (totalstim). 
+ * The sizes of inputs/parameters/outputs are described in more specific terms below.
  *
  * In the documentation and code below, several abbreviations are commonplace. They are
  * provided here for convenience:
@@ -113,34 +117,31 @@
  * - IC = inferior colliculus
  * - MOC = medial olivocochlear (neurons/system)
  *
- * @param [in] px (totalstim, ) (Pa) Vector containing sound-pressure waveform
- * @param [in] randNums_hsr (n_chan, totalstim) Matrix of fractional Gaussian noise for the
+ * @param [in] px (2, totalstim) (Pa) Vector of vectors containing sound-pressure waveforms
+ * for the left and right ears, respectively.
+ * @param [in] randNums_hsr (2, n_chan, totalstim) Matrix of fractional Gaussian noise for the
  * high-spontaneous-rate signal path, see 2014 paper above for details on how this noise
  * should be synthesized 
- * @param [in] randNums_lsr (n_chan, totalstim) Matrix of fractional Gaussian noise for the
+ * @param [in] randNums_lsr (2, n_chan, totalstim) Matrix of fractional Gaussian noise for the
  * low-spontaneous-rate signal path, see 2014 paper above for details on how this noise
  * should be synthesized 
  * @param [in] cf (n_chan, ) (Hz) Vector containing characteristic frequencies for each
- * channel. CFs should be within the range of [[vals]] for cats and [[vals]] for humans
+ * channel. CFs should be within the range of 0.125-40 kHz for cats and 0.125-20 kHz for humans
  * @param [in] tdres (s) Sample time resolution, i.e., reciprocal of the sampling rate.
- * Suitable sampling rates are ~100 kHz for human simulations and 200 kHz for cat
- * simulations.
+ * Suitable sampling rates are 100 kHz for human simulations and 200 kHz for cat
+ * simulations (if CF channels > 20 kHz are being simulated).
  * @param [in] totalstim Number of samples in the simulation
- * @param [in] cohc (n_chan, 1) Vector containing elements in [0, 1] controlling the 
- * Cohc value for each CF channel. This value is multiplied with the resulting "gain factor"
+ * @param [in] cohc (2, n_chan1) Vector of vectors containing values in [0, 1] controlling the 
+ * COHC value for each CF channel. This value is multiplied with the resulting "gain factor"
  * yielded by the MOC gain-control pathway. A value of 0 makes the model fully 
  * "hearing-impaired" and efferent gain control will have no impact on responses. 
  * A value of 1 with the efferent gain control disabled results in a fully "normal-hearing" 
  * response that should match data recorded in anesthetized auditory nerve. 
- * @param [in] cihc (n_chan, 1) Vector containing elements in [0, 1] controlling the 
- * Cihc value for each CF channel. This controls the amplitude of inner-hair-cell responses
+ * @param [in] cihc (2, n_chan) Vector of vectors containing values in [0, 1] controlling the 
+ * CIHC value for each CF channel. This controls the amplitude of inner-hair-cell responses
  * produced by the C1 filter (it has no effect on responses produced by the C2 filter).
  * @param [in] species Integer indicating which species to simulate (1==cat, 2=human[shera],
  * 3==human[glasberg])
- * @param [in] powerlaw_include_fast Integer indicating whether to include or exclude the
- * fast power law adaptation stage in the auditory-nerve model
- * @param [in] powerlaw_len_memory Integer determining the length of the "memory" of the
- * power-law adpatation stage in the auditory-nerve model
  * @param [in] cn_tau_e (s) Excitatory time constant for SFIE cochlear nucleus stage,
  * reasonable values are in the range of [0.5e-3, 8e-3], default value is 0.5e-3
  * @param [in] cn_tau_i (s) Inhibitory time constant for SFIE cochlear nucleus stage,
@@ -166,26 +167,24 @@
  * @param [in] moc_cutoff (Hz) Cutoff value for the simple IIR lowpass filter that is used
  * to lowpass filter MOC input signals before applying the MOC nonlinearity, default value
  * is 0.64 Hz
- * ///// START EXPERIMENTAL NEW MOC PARAMETERS /////
- * @param [in] moc_beta Parameter in the WDR-MOC nonlinearity, governs the slope
+ * @param [in] moc_beta (n_chan, ) Parameter in the WDR-MOC nonlinearity, governs the slope
  * of the nonlinearity such that smaller values yield more gradual slopes between MOC rate
  * and MOC output gain while larger values yield sharper slopes between MOC rate and MOC
- * output gain, default value is 0.015 (per ARO2024 / HWK2024)
- * @param [in] moc_offset (sp/s) Parameter in the WDR-MOC nonlinearity, shifts the
+ * output gain. Vector-valued because each CF channel can have its own moc_beta value.
+ * @param [in] moc_offset (n_chan, ) (sp/s) Parameter in the WDR-MOC nonlinearity, shifts the
  * nonlinearity along the x-axis such that gain control is not applied until the *weighted*
  * WDR-MOC rate exceeds the offset, default value is 0.0
  * @param [in] moc_minval Minimum output value for the WDR-MOC nonlinearity, should be
  * in range of [0, 1], default is 0.0
  * @param [in] moc_maxval Maximum output value for the WDR-MOC nonlinearity, should be
  * in range of [0, 1], default is 1.0
- * @param [in] moc_weight (n_chan, 1) Weight applied to the WDR-MOC rate before it is passed
+ * @param [in] moc_weight (n_chan, ) Weight applied to the WDR-MOC rate before it is passed
  * through the WDR-MOC nonlinearity and converted into a gain value. Setting this value to
  * 0.0 disables WDR-driven gain control. This is a vector-valued parameter where each
  * element is applied to weight responses from the corresponding CF.
  * @param [in] moc_width (oct) Range of CFs over which MOC gain control signal from
  * a single channel is sent to OHCs. This is parametrized in terms of the standard deviation
  * of a Gaussian weighting function centered at CF.
- *  * ///// STOP EXPERIMENTAL NEW MOC PARAMETERS /////
  * @param [in] dur_settle (s) Duration of "settle time", during which MOC outputs are fixed
  * at zero and no inputs are provided to the MOC lowpass filters. This is intended to 
  * give the model some time to settle before gain control "kicks in" and begins influencing
@@ -193,39 +192,39 @@
  * have a period of silence corresponding to dur_settle at the beginning before any sound.
  * @param [in] moc_delay (s) Duration of delay before MOC signal contributes to any changes
  * in ongoing gain factor in the peripheral stage.
- * @param [out] controlout (n_chan, totalstim) Matrix to store output of control-path filter
- * @param [out] c1out (n_chan, totalstim) Matrix to store output of signal-path C1 filter
- * @param [out] c2out (n_chan, totalstim) Matrix to store output of signal-path C2 filter
- * @param [out] ihcout (n_chan, totalstim) Matrix to store output of inner hair cell
- * @param [out] expout_hsr (n_chan, totalstim) Matrix to store output of exponential
+ * @param [out] controlout (2, n_chan, totalstim) Matrix to store output of control-path filter
+ * @param [out] c1out (2, n_chan, totalstim) Matrix to store output of signal-path C1 filter
+ * @param [out] c2out (2, n_chan, totalstim) Matrix to store output of signal-path C2 filter
+ * @param [out] ihcout (2, n_chan, totalstim) Matrix to store output of inner hair cell
+ * @param [out] expout_hsr (2, n_chan, totalstim) Matrix to store output of exponential
  * adaptation stage for high-spontaneous-rate auditory-nerve fiber
- * @param [out] sout1_hsr (n_chan, totalstim) Matrix to store output of slow power-law
+ * @param [out] sout1_hsr (2, n_chan, totalstim) Matrix to store output of slow power-law
  * adaptation stage for high-spontaneousrate auditory-nerve fiber
- * @param [out] sout2_hsr (n_chan, totalstim) Matrix to store output of fast power-law
+ * @param [out] sout2_hsr (2, n_chan, totalstim) Matrix to store output of fast power-law
  * adaptation stage for high-spontaneous-rate auditory-nerve fiber
- * @param [out] synout_hsr (n_chan, totalstim) Matrix to store output of synapse for
+ * @param [out] synout_hsr (2, n_chan, totalstim) Matrix to store output of synapse for
  * high-spontaneous-rate auditory-nerve fiber
- * @param [out] expout_lsr (n_chan, totalstim) Matrix to store output of exponential
+ * @param [out] expout_lsr (2, n_chan, totalstim) Matrix to store output of exponential
  * adaptation stage for low-spontaneous-rate auditory-nerve fiber
- * @param [out] sout1_lsr (n_chan, totalstim) Matrix to store output of slow power-law
+ * @param [out] sout1_lsr (2, n_chan, totalstim) Matrix to store output of slow power-law
  * adaptation stage for low-spontaneousrate auditory-nerve fiber
- * @param [out] sout2_lsr (n_chan, totalstim) Matrix to store output of fast power-law
+ * @param [out] sout2_lsr (2, n_chan, totalstim) Matrix to store output of fast power-law
  * adaptation stage for low-spontaneous-rate auditory-nerve fiber
- * @param [out] synout_lsr (n_chan, totalstim) Matrix to store output of synapse for
+ * @param [out] synout_lsr (2, n_chan, totalstim) Matrix to store output of synapse for
  * low-spontaneous-rate auditory-nerve fiber
- * @param [out] anrateout_lsr (n_chan, totalstim) (sp/s) Matrix to store output
+ * @param [out] anrateout_lsr (2, n_chan, totalstim) (sp/s) Matrix to store output
  * instantaneous firing rate of low-spontaneous-rate auditory-nerve fiber
- * @param [out] anrateout_hsr (n_chan, totalstim) (sp/s) Matrix to store output
+ * @param [out] anrateout_hsr (2, n_chan, totalstim) (sp/s) Matrix to store output
  * instantaneous firing rate of high-spontaneous-rate auditory-nerve fiber
- * @param [out] cnout (n_chan, totalstim) (sp/s) Matrix to store output of cochlear nucleus
+ * @param [out] cnout (2, n_chan, totalstim) (sp/s) Matrix to store output of cochlear nucleus
  * stage
- * @param [out] icout (n_chan, totalstim) (sp/s) Matrix to store output of inferior
- * colliculus stage totalstim)
- * @param [out] mocwdr (n_chan, totalstim) (sp/s) Matrix to store the WDR-MOC rates, which
+ * @param [out] icout (2, n_chan, totalstim) (sp/s) Matrix to store output of inferior
+ * colliculus stage
+ * @param [out] mocwdr (2, n_chan, totalstim) (sp/s) Matrix to store the WDR-MOC rates, which
  * are lowpass-filtered LSR rates
- * @param [out] mocic (n_chan, totalstim) (sp/s) Matrix to store the IC-MOC rates, which are
+ * @param [out] mocic (2, n_chan, totalstim) (sp/s) Matrix to store the IC-MOC rates, which are
  * lowpass-filtered IC rates
- * @param [out] gain (n_chan, totalstim) Matrix to store time-varying "gain" value in [0, 1]
+ * @param [out] gain (2, n_chan, totalstim) Matrix to store time-varying "gain" value in [0, 1]
  */
 void model(
     double **px, 
