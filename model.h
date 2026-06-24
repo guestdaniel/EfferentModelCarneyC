@@ -1,8 +1,9 @@
 #include "complex.hpp"
 
-/* Declare primary model() function 
- * Because this function has so many arguments, they are unrolled below, grouped with empty
- * lines, and annotated with the correspond argument names in the definition of model
+/* Declare primary model() function(s)
+ * Because this function has so many arguments, they are unrolled below, grouped
+ * with empty lines, and annotated with the correspond argument names in the
+ * definition of model
  */
 void model_monaural(
     // Principal inputs
@@ -69,6 +70,73 @@ void model_monaural(
     double **,  // gain
     double **   // gainpostmix
 );
+
+void model_binaural(
+    // Principal inputs
+    double *,   // px
+    double **,  // randNums_hsr
+    double **,  // randNums_lsr
+    double *,   // cf
+    // IHC/AN parameters
+    int,        // n_chan
+    double,     // tdres
+    int,        // totalstim
+    double *,   // cohc
+    double *,   // cihc
+    int,        // species
+    double,     // spont
+    int,        // powerlaw_mode
+    // CN parameters
+    double,     // cn_tau_e
+    double,     // cn_tau_i
+    double,     // cn_delay
+    double,     // cn_amp
+    double,     // cn_inh
+    // IC parameters
+    double,     // ic_tau_e
+    double,     // ic_tau_i
+    double,     // ic_delay
+    double,     // ic_amp
+    double,     // ic_inh
+    // MOC parameters
+    double,     // moc_cutoff
+    double *,   // moc_beta
+    double *,   // moc_offset
+    double,     // moc_minval
+    double,     // moc_maxval
+    double *,   // moc_weight
+    double,     // moc_width
+    double,     // dur_settle
+    double,     // moc_delay
+    int,        // moc_fix_gain
+    // BM/IHC outputs
+    double **,  // controlout
+    double **,  // c1out
+    double **,  // c2out
+    double **,  // ihcout
+    // HSR outputs
+    double **,  // expout_hsr
+    double **,  // sout1_hsr
+    double **,  // sout2_hsr
+    double **,  // synout_hsr
+    // LSR outputs
+    double **,  // expout_lsr
+    double **,  // sout1_lsr
+    double **,  // sout2_lsr
+    double **,  // synout_lsr
+    // AN outputs
+    double **,  // anrateout_hsr
+    double **,  // anrateout_lsr
+    // CN/IC outputs
+    double **,  // cnout
+    double **,  // icout
+    // MOC outputs
+    double **,  // mocwdr
+    double **,  // mocic
+    double **,  // gain
+    double **   // gainpostmix
+);
+
 
 /* Declare other functions */
 // model.c
