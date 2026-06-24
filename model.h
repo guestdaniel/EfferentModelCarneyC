@@ -4,7 +4,7 @@
  * Because this function has so many arguments, they are unrolled below, grouped with empty
  * lines, and annotated with the correspond argument names in the definition of model
  */
-void model(
+void model_monaural(
     // Principal inputs
     double *,   // px
     double **,  // randNums_hsr

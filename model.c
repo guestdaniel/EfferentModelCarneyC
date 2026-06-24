@@ -1,7 +1,7 @@
  /*
-  This is v6.00 of the code for subcortical auditory model model of:
+  This is v7.00 of the code for subcortical auditory model model of:
 
-  Guest, D. R., Farhadi, A., ..., and Carney, L. H. (202x). ...
+  Guest, D. R. and Carney, L. H. (202x). ...
 
   The peripheral stage of this model is derived from the following work, listed in 
   chronological order:
@@ -37,17 +37,26 @@
   adaptation for auditory computational models,” The Journal of the Acoustical Society of 
   America, 156, 3954–3957. doi:10.1121/10.0034457
 
-  The peripheral stage was modified by Afagh Farhadi to include a sample-by-sample efferent 
-  gain control loop, which is controlled by an auditory brainstem and midbrain model 
-  included in this code. This efferent model was modified by Daniel Guest to allow for 
-  "crosstalk" between different channels (i.e., efferent responses in one channel can 
-  affect gain in others).
+  * Guest, D. R., Farhadi, A., and Carney, L. H. (2026). “A computational model
+  of the mammalian auditory periphery with a closed-loop medial olivocochlear
+  reflex simulating across-channel efferent gain control,” The Journal of the
+  Acoustical Society of America, 159, 5445–5461. doi:10.1121/10.0044141
 
-  Please cite these papers marked with asterisks (*) if you publish any research results 
-  obtained with this code or any modified versions of this code.
+  The peripheral stage was modified by Afagh Farhadi to include a
+  sample-by-sample efferent gain control loop, which is controlled by an
+  auditory brainstem and midbrain model included in this code. That model
+  version was published as Farhadi et al. (2024) in JASA.
+  
+  This efferent model was modified by Daniel Guest to allow for "crosstalk"
+  between different channels (i.e., efferent responses in one channel can affect
+  gain in others). This model version was originally published in Guest et al.
+  (2026) in JASA and is still under active development.
 
-  To compare this code to older model versions, please refer to changelog.txt and to the 
-  Git commit history. 
+  Please cite these papers marked with asterisks (*) if you publish any research
+  results obtained with this code or any modified versions of this code.
+
+  To compare this code to older model versions, please refer to changelog.txt
+  and to the Git commit history. 
 */
 
 #include <stdio.h>
@@ -227,7 +236,7 @@
  * lowpass-filtered IC rates
  * @param [out] gain (n_chan, totalstim) Matrix to store time-varying "gain" value in [0, 1]
  */
-void model(
+void model_monaural(
     double *px, 
     double **randNums_hsr, 
     double **randNums_lsr, 
