@@ -73,16 +73,16 @@ void model_monaural(
 
 void model_binaural(
     // Principal inputs
-    double *,   // px
-    double **,  // randNums_hsr
-    double **,  // randNums_lsr
+    double **,   // px
+    double ***,  // randNums_hsr
+    double ***,  // randNums_lsr
     double *,   // cf
     // IHC/AN parameters
     int,        // n_chan
     double,     // tdres
     int,        // totalstim
-    double *,   // cohc
-    double *,   // cihc
+    double **,  // cohc
+    double **,  // cihc
     int,        // species
     double,     // spont
     int,        // powerlaw_mode
@@ -110,31 +110,31 @@ void model_binaural(
     double,     // moc_delay
     int,        // moc_fix_gain
     // BM/IHC outputs
-    double **,  // controlout
-    double **,  // c1out
-    double **,  // c2out
-    double **,  // ihcout
+    double ***,  // controlout
+    double ***,  // c1out
+    double ***,  // c2out
+    double ***,  // ihcout
     // HSR outputs
-    double **,  // expout_hsr
-    double **,  // sout1_hsr
-    double **,  // sout2_hsr
-    double **,  // synout_hsr
+    double ***,  // expout_hsr
+    double ***,  // sout1_hsr
+    double ***,  // sout2_hsr
+    double ***,  // synout_hsr
     // LSR outputs
-    double **,  // expout_lsr
-    double **,  // sout1_lsr
-    double **,  // sout2_lsr
-    double **,  // synout_lsr
+    double ***,  // expout_lsr
+    double ***,  // sout1_lsr
+    double ***,  // sout2_lsr
+    double ***,  // synout_lsr
     // AN outputs
-    double **,  // anrateout_hsr
-    double **,  // anrateout_lsr
+    double ***,  // anrateout_hsr
+    double ***,  // anrateout_lsr
     // CN/IC outputs
-    double **,  // cnout
-    double **,  // icout
+    double ***,  // cnout
+    double ***,  // icout
     // MOC outputs
-    double **,  // mocwdr
-    double **,  // mocic
-    double **,  // gain
-    double **   // gainpostmix
+    double ***,  // mocwdr
+    double ***,  // mocic
+    double ***,  // gain
+    double ***   // gainpostmix
 );
 
 
