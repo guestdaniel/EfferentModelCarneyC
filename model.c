@@ -1027,117 +1027,128 @@ void model_binaural(
     double ***gainpostmix
 ) {
     /* Declare pointers to store convenient references to LSR/HSR pathway stages */
-    double** randNums[2] = {randNums_hsr, randNums_lsr};
-    double** expout[2] = {expout_hsr, expout_lsr};
-    double** sout1[2] = {sout1_hsr, sout1_lsr};
-    double** sout2[2] = {sout2_hsr, sout2_lsr};
-    double** synout[2] = {synout_hsr, synout_lsr};
-    double** anrateout[2] = {anrateout_hsr, anrateout_lsr};
+    double*** randNums[2] = {randNums_hsr, randNums_lsr};
+    double*** expout[2] = {expout_hsr, expout_lsr};
+    double*** sout1[2] = {sout1_hsr, sout1_lsr};
+    double*** sout2[2] = {sout2_hsr, sout2_lsr};
+    double*** synout[2] = {synout_hsr, synout_lsr};
+    double*** anrateout[2] = {anrateout_hsr, anrateout_lsr};
 
     /* Declare temporary variables for the BM/IHC stage outputs */
     double wbout1, wbout, ohcnonlinout, ohcout, tauc1, rsigma, wb_gain, c1vihctmp, 
            c2vihctmp, me_curr;
 
     /* Declare parameters in the BM/IHC stage (all varying by channel) */
-    double bmplace[n_chan], centerfreq[n_chan], Taumin[n_chan], Taumax[n_chan], 
-           bmTaumin[n_chan], bmTaumax[n_chan], ratiobm[n_chan], bmTaubm[n_chan], 
-           TauWBMax[n_chan], TauWBMin[n_chan], tauwb[n_chan], wbgain[n_chan],
-           delay_latency[n_chan], lasttmpgain[n_chan];
-    int grdelay[n_chan], len_delay_latency[n_chan];
+    double bmplace[2][n_chan], centerfreq[2][n_chan], Taumin[2][n_chan], Taumax[2][n_chan], 
+           bmTaumin[2][n_chan], bmTaumax[2][n_chan], ratiobm[2][n_chan], bmTaubm[2][n_chan], 
+           TauWBMax[2][n_chan], TauWBMin[2][n_chan], tauwb[2][n_chan], wbgain[2][n_chan],
+           delay_latency[2][n_chan], lasttmpgain[2][n_chan];
+    int grdelay[2][n_chan], len_delay_latency[2][n_chan];
 
     /* Declare and allocate for tmpgain */
-    double *tmpgain[n_chan];
-    for (int i = 0; i < n_chan; i++) {
-        tmpgain[i] = (double*) calloc(totalstim, sizeof(double));
+    double *tmpgain[2][n_chan];
+    for (int e = 0; e < 2; e++) {
+        for (int i = 0; i < n_chan; i++) {
+            tmpgain[e][i] = (double*) calloc(totalstim, sizeof(double));
+        }
     }
 
     /* Declare and allocate for meout */
-    double *meout = calloc(totalstim, sizeof(double));
+    double *meout[2];
+    for (int e = 0; e < 2; e++){
+        meout[e] = calloc(totalstim, sizeof(double));
+    }
 
     /* Declare and initialize state variables for WbGammaTone filter */
-    double wbphase[n_chan];
-    COMPLEX *wbgtf[n_chan];
-    COMPLEX *wbgtfl[n_chan];
-    for (int i = 0; i < n_chan; i++) {
-        wbgtf[i] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
-        wbgtfl[i] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
-        wbphase[i] = 0.0;
-        for (int j = 0; j < 4; j++) {
-            wbgtfl[i][j] = compmult(0, compexp(0));
-            wbgtf[i][j]  = compmult(0, compexp(0));
+    double wbphase[2][n_chan];
+    COMPLEX *wbgtf[2][n_chan];
+    COMPLEX *wbgtfl[2][n_chan];
+    for (int e = 0; e < 2; e++){
+        for (int i = 0; i < n_chan; i++) {
+            wbgtf[e][i] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
+            wbgtfl[e][i] = (COMPLEX*) calloc(4, sizeof(COMPLEX));
+            wbphase[e][i] = 0.0;
+            for (int j = 0; j < 4; j++) {
+                wbgtfl[e][i][j] = compmult(0, compexp(0));
+                wbgtf[e][i][j]  = compmult(0, compexp(0));
+            }
         }
     }
 
     /* Declare and initialize state variables for OhcLowPass filter */
-    double *ohc[n_chan], *ohcl[n_chan];
-    for (int i = 0; i < n_chan; i++) {
-        ohc[i] = (double*) calloc(4, sizeof(double));
-        ohcl[i] = (double*) calloc(4, sizeof(double));
+    double *ohc[2][n_chan], *ohcl[2][n_chan];
+    for (int e = 0; e < 2; e++){
+        for (int i = 0; i < n_chan; i++) {
+            ohc[e][i] = (double*) calloc(4, sizeof(double));
+            ohcl[e][i] = (double*) calloc(4, sizeof(double));
+        }
     }
 
     /* Declare and initialize state variables for C1ChirpFilt filter */
-    double C1gain_norm[n_chan], C1initphase[n_chan];
-    for (int i = 0; i < n_chan; i++) {
-        C1gain_norm[i] = 0.0;
-        C1initphase[i] = 0.0;
-    }
-    double*** C1input = (double***) malloc(n_chan * sizeof(double**));
-    for (int i = 0; i < n_chan; i++) {
-        C1input[i] = (double**) malloc(12 * sizeof(double*));
-        for (int j = 0; j < 12; j++) {
-            C1input[i][j] = (double*) calloc(4, sizeof(double));
+    double C1gain_norm[2][n_chan], C1initphase[2][n_chan];
+    for (int e = 0; e < 2; e++){
+        for (int i = 0; i < n_chan; i++) {
+            C1gain_norm[e][i] = 0.0;
+            C1initphase[e][i] = 0.0;
         }
     }
-    double*** C1output = (double***) malloc(n_chan * sizeof(double**));
-    for (int i = 0; i < n_chan; i++) {
-        C1output[i] = (double**) malloc(12 * sizeof(double*));
-        for (int j = 0; j < 12; j++) {
-            C1output[i][j] = (double*) calloc(4, sizeof(double));
+    double**** C1input = (double ****) malloc(2 * sizeof(double***));
+    for (int e = 0; e < 2; e++) {
+        C1input[e] = (double ***) malloc(n_chan * sizeof(double**));
+        for (int i = 0; i < n_chan; i++) {
+            C1input[e][i] = (double**) malloc(12 * sizeof(double*));
+            for (int j = 0; j < 12; j++) {
+                C1input[e][i][j] = (double*) calloc(4, sizeof(double));
+            }
         }
     }
-    for (int i = 0; i < n_chan; i++) {
-        for (int j = 0; j < 12; j++) {
-            for (int k = 0; k < 4; k++) {
-                C1input[i][j][k] = 0.0;
-                C1output[i][j][k] = 0.0;
+    double**** C1output = (double ****) malloc(2 * sizeof(double***));
+    for (int e = 0; e < 2; e++) {
+        C1output[e] = (double ***) malloc(n_chan * sizeof(double**));
+        for (int i = 0; i < n_chan; i++) {
+            C1output[e][i] = (double**) malloc(12 * sizeof(double*));
+            for (int j = 0; j < 12; j++) {
+                C1output[e][i][j] = (double*) calloc(4, sizeof(double));
             }
         }
     }
 
     /* Declare and initialize state variables for C2ChirpFilt filter */
-    double C2gain_norm[n_chan], C2initphase[n_chan];
-    for (int i = 0; i < n_chan; i++) {
-        C2gain_norm[i] = 0.0;
-        C2initphase[i] = 0.0;
-    }
-    double*** C2input = (double***) malloc(n_chan * sizeof(double**));
-    for (int i = 0; i < n_chan; i++) {
-        C2input[i] = (double**) malloc(12 * sizeof(double*));
-        for (int j = 0; j < 12; j++) {
-            C2input[i][j] = (double*) calloc(4, sizeof(double));
+    double C2gain_norm[2][n_chan], C2initphase[2][n_chan];
+    for (int e = 0; e < 2; e++) {
+        for (int i = 0; i < n_chan; i++) {
+            C2gain_norm[e][i] = 0.0;
+            C2initphase[e][i] = 0.0;
         }
     }
-    double*** C2output = (double***) malloc(n_chan * sizeof(double**));
-    for (int i = 0; i < n_chan; i++) {
-        C2output[i] = (double**) malloc(12 * sizeof(double*));
-        for (int j = 0; j < 12; j++) {
-            C2output[i][j] = (double*) calloc(4, sizeof(double));
+    double**** C2input = (double ****) malloc(2 * sizeof(double***));
+    for (int e = 0; e < 2; e++) {
+        C2input[e] = (double ***) malloc(n_chan * sizeof(double**));
+        for (int i = 0; i < n_chan; i++) {
+            C2input[e][i] = (double**) malloc(12 * sizeof(double*));
+            for (int j = 0; j < 12; j++) {
+                C2input[e][i][j] = (double*) calloc(4, sizeof(double));
+            }
         }
     }
-    for (int i = 0; i < n_chan; i++) {
-        for (int j = 0; j < 12; j++) {
-            for (int k = 0; k < 4; k++) {
-                C2input[i][j][k] = 0.0;
-                C2output[i][j][k] = 0.0;
+    double**** C2output = (double ****) malloc(2 * sizeof(double***));
+    for (int e = 0; e < 2; e++) {
+        C2output[e] = (double ***) malloc(n_chan * sizeof(double**));
+        for (int i = 0; i < n_chan; i++) {
+            C2output[e][i] = (double**) malloc(12 * sizeof(double*));
+            for (int j = 0; j < 12; j++) {
+                C2output[e][i][j] = (double*) calloc(4, sizeof(double));
             }
         }
     }
 
     /* Declare and initialize variables for the IHC lowpass filter */
-    double *ihc[n_chan], *ihcl[n_chan];
-    for (int i = 0; i < n_chan; i++) {
-        ihc[i] = (double*) calloc(8, sizeof(double));
-        ihcl[i] = (double*) calloc(8, sizeof(double));
+    double *ihc[2][n_chan], *ihcl[2][n_chan];
+    for (int e = 0; e < 2; e++) {
+        for (int i = 0; i < n_chan; i++) {
+            ihc[e][i] = (double*) calloc(8, sizeof(double));
+            ihcl[e][i] = (double*) calloc(8, sizeof(double));
+        }
     }
 
     /* Declare variables used in the AN stage that are fixed across channels or reused */
@@ -1179,72 +1190,78 @@ void model_binaural(
     /* Declare other variables used in the AN stage (all vary by channel/fiber type) */
     int n_fiber_type = 2;  // HSR==0, LSR==1
     double sponts[2] = {100.0, 0.1}; 
-    double synstrength[n_fiber_type][n_chan], synslope[n_fiber_type][n_chan], 
-           VI[n_fiber_type][n_chan], PG[n_fiber_type][n_chan], CG[n_fiber_type][n_chan],
-           VL[n_fiber_type][n_chan], PL[n_fiber_type][n_chan], I1[n_fiber_type][n_chan], 
-           I2[n_fiber_type][n_chan], 
-           E1[n_fiber_type][n_chan][n_process], E2[n_fiber_type][n_chan][n_process], 
-           D1[n_fiber_type][n_chan][n_process], D2[n_fiber_type][n_chan][n_process],
-           CI[n_fiber_type][n_chan], CL[n_fiber_type][n_chan], 
-           CIlast[n_fiber_type][n_chan];
+    double synstrength[2][n_fiber_type][n_chan], synslope[2][n_fiber_type][n_chan], 
+           VI[2][n_fiber_type][n_chan], PG[2][n_fiber_type][n_chan], CG[2][n_fiber_type][n_chan],
+           VL[2][n_fiber_type][n_chan], PL[2][n_fiber_type][n_chan], I1[2][n_fiber_type][n_chan], 
+           I2[2][n_fiber_type][n_chan], 
+           E1[2][n_fiber_type][n_chan][n_process], E2[2][n_fiber_type][n_chan][n_process], 
+           D1[2][n_fiber_type][n_chan][n_process], D2[2][n_fiber_type][n_chan][n_process],
+           CI[2][n_fiber_type][n_chan], CL[2][n_fiber_type][n_chan], 
+           CIlast[2][n_fiber_type][n_chan];
 
-    /* Loop over channels to calculate parameters, coefficients, etc. for each channel */
-    for (int c = 0; c < n_chan; c++) {
-        /* Calculate the CF for the control-path wideband filter by shifting 1.2 mm basal
-           relative to nominal CF (pg 1450, Zilany and Bruce, 2006) */
-        if (species == 1) {
-            bmplace[c] = 11.9 * log10(0.80 + cf[c]/456.0); /* Calculate the location on basilar membrane from CF */
-            centerfreq[c] = 456.0 * (pow(10, (bmplace[c]+1.2)/11.9) - 0.80); /* Shift the center freq */
-        }
-        else {
-            bmplace[c] = (35/2.1) * log10(1.0 + cf[c]/165.4); /* Calculate the location on basilar membrane from CF */
-            centerfreq[c] = 165.4 * (pow(10, (bmplace[c]+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
-        }
+    /* Loop over ears and channels to calculate parameters, coefficients, etc. for each channel */
+    for (int e = 0; e < 2; e++) {
+        for (int c = 0; c < n_chan; c++) {
+            /* Calculate the CF for the control-path wideband filter by shifting 1.2 mm basal
+            relative to nominal CF (pg 1450, Zilany and Bruce, 2006) */
+            if (species == 1) {
+                bmplace[e][c] = 11.9 * log10(0.80 + cf[c]/456.0); /* Calculate the location on basilar membrane from CF */
+                centerfreq[e][c] = 456.0 * (pow(10, (bmplace[e][c]+1.2)/11.9) - 0.80); /* Shift the center freq */
+            }
+            else {
+                bmplace[e][c] = (35/2.1) * log10(1.0 + cf[c]/165.4); /* Calculate the location on basilar membrane from CF */
+                centerfreq[e][c] = 165.4 * (pow(10, (bmplace[e][c]+1.2)/(35/2.1)) - 1.0); /* Shift the center freq */
+            }
 
-        /* Determine time constants for cochlear filters that are time-invariant */
-        Get_tauwb(c, cf, species, 3, Taumax, Taumin);
-        TauWBMax[c] = Taumin[c] + 0.2*(Taumax[c]-Taumin[c]); // Eq 4, Zilany and Bruce (2006)
-        TauWBMin[c] = TauWBMax[c]/Taumax[c]*Taumin[c];
-        Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
-        bmTaubm[c] = cohc[c]*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
-        tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c]) * 
-            (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
-        wbgain[c] = gain_groupdelay(tdres, centerfreq[c], cf[c], tauwb[c], &grdelay[c]);
-        tmpgain[c][0] = wbgain[c];
-        lasttmpgain[c] = wbgain[c];
+            /* Determine time constants for cochlear filters that are time-invariant */
+            Get_tauwb(c, cf, species, 3, Taumax[e], Taumin[e]);
+            TauWBMax[e][c] = Taumin[e][c] + 0.2*(Taumax[e][c]-Taumin[e][c]); // Eq 4, Zilany and Bruce (2006)
+            TauWBMin[e][c] = TauWBMax[e][c]/Taumax[e][c]*Taumin[e][c];
+            Get_taubm(c, cf, species, Taumax[e], bmTaumax[e], bmTaumin[e], ratiobm[e]);
+            bmTaubm[e][c] = cohc[e][c]*(bmTaumax[e][c]-bmTaumin[e][c]) + bmTaumin[e][c];
+            tauwb[e][c] = TauWBMax[e][c] + (bmTaubm[e][c]-bmTaumax[e][c]) * 
+                (TauWBMax[e][c]-TauWBMin[e][c])/(bmTaumax[e][c]-bmTaumin[e][c]);
+            wbgain[e][c] = gain_groupdelay(tdres, centerfreq[e][c], cf[c], tauwb[e][c], &grdelay[e][c]);
+            tmpgain[e][c][0] = wbgain[e][c];
+            lasttmpgain[e][c] = wbgain[e][c];
 
-        /* Calculate delay time introduced by cochlea/hair cells/synapse/etc
-           (to account for measured spike latency in ANF recordings) */
-        delay_latency[c] = delay_cat(cf[c]);  /* Delay time in s */
-        len_delay_latency[c] = __max(0, (int) ceil(delay_latency[c]/tdres));  /* Delay time in samples*/
+            /* Calculate delay time introduced by cochlea/hair cells/synapse/etc
+            (to account for measured spike latency in ANF recordings) */
+            delay_latency[e][c] = delay_cat(cf[c]);  /* Delay time in s */
+            len_delay_latency[e][c] = __max(0, (int) ceil(delay_latency[e][c]/tdres));  /* Delay time in samples*/
 
-        /* Set parameters for double-exponential adaptation (based on fiber type / spont) */
-        for (int t = 0; t < n_fiber_type; t++) {
-            initialize_ws1988_adaptation(cf[c], sponts[t], &synstrength[t][c], 
-                                         &synslope[t][c], &VI[t][c], &PG[t][c], &VL[t][c], 
-                                         &PL[t][c], &CG[t][c], &CI[t][c], &CL[t][c]);
+            /* Set parameters for double-exponential adaptation (based on fiber type / spont) */
+            for (int t = 0; t < n_fiber_type; t++) {
+                initialize_ws1988_adaptation(cf[c], sponts[t], &synstrength[e][t][c], 
+                                            &synslope[e][t][c], &VI[e][t][c], &PG[e][t][c], &VL[e][t][c], 
+                                            &PL[e][t][c], &CG[e][t][c], &CI[e][t][c], &CL[e][t][c]);
+            }
         }
     }
 
     /* Set parameters for power-law adaptation */
-    for (int t = 0; t < n_fiber_type; t++) {
-        for (int i = 0; i < n_chan; i++) {
-            I1[t][i] = 0.0;
-            I2[t][i] = 0.0;
+    for (int e = 0; e < 2; e++) {
+        for (int t = 0; t < n_fiber_type; t++) {
+            for (int i = 0; i < n_chan; i++) {
+                I1[e][t][i] = 0.0;
+                I2[e][t][i] = 0.0;
+            }
         }
     }
 
     /* Calculate parameters for approximate power-law adaptation (sout1) */
-    for (int t = 0; t < n_fiber_type; t++) {
-        for (int i = 0; i < n_chan; i++) {
-            for (int p = 0; p < n_process; p++) {
-                // Initialize exponential process states at 0
-                E1[t][i][p] = 0.0;
-                E2[t][i][p] = 0.0;
+    for (int e = 0; e < 2; e++) {
+        for (int t = 0; t < n_fiber_type; t++) {
+            for (int i = 0; i < n_chan; i++) {
+                for (int p = 0; p < n_process; p++) {
+                    // Initialize exponential process states at 0
+                    E1[e][t][i][p] = 0.0;
+                    E2[e][t][i][p] = 0.0;
 
-                // Determine time constant for this step, convert to decay coef and save
-                D1[t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_slow[p]);
-                D2[t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_fast[p]);
+                    // Determine time constant for this step, convert to decay coef and save
+                    D1[e][t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_slow[p]);
+                    D2[e][t][i][p] = 1 - exp(-(1/(1/tdres)) / tau_fast[p]);
+                }
             }
         }
     }
@@ -1258,26 +1275,30 @@ void model_binaural(
 
     double cn_B_e[2], cn_A_e[3], cn_B_i[2], cn_A_i[3];
     int cn_len_delay = (int) floor(cn_delay * 1/tdres);
-    double *cn_i[n_chan];
-    double *cn_e_tmp[n_chan];
-    double *cn_i_tmp[n_chan];
+    double *cn_i[2][n_chan];
+    double *cn_e_tmp[2][n_chan];
+    double *cn_i_tmp[2][n_chan];
     double cntmp = 0.0;
-    for (int i = 0; i < n_chan; i++) {
-        cn_i[i] = (double*) calloc(totalstim, sizeof(double));
-        cn_e_tmp[i] = (double*) calloc(totalstim, sizeof(double));
-        cn_i_tmp[i] = (double*) calloc(totalstim, sizeof(double));
+    for (int e = 0; e < 2; e++) {
+        for (int i = 0; i < n_chan; i++) {
+            cn_i[e][i] = (double*) calloc(totalstim, sizeof(double));
+            cn_e_tmp[e][i] = (double*) calloc(totalstim, sizeof(double));
+            cn_i_tmp[e][i] = (double*) calloc(totalstim, sizeof(double));
+        }
     }
 
     double ic_B_e[2], ic_A_e[3], ic_B_i[2], ic_A_i[3];
     int ic_len_delay = (int) floor(ic_delay * 1/tdres);
-    double *ic_i[n_chan];
-    double *ic_e_tmp[n_chan];
-    double *ic_i_tmp[n_chan];
+    double *ic_i[2][n_chan];
+    double *ic_e_tmp[2][n_chan];
+    double *ic_i_tmp[2][n_chan];
     double ictmp = 0.0;
-    for (int i = 0; i < n_chan; i++) {
-        ic_i[i] = (double*) calloc(totalstim, sizeof(double));
-        ic_e_tmp[i] = (double*) calloc(totalstim, sizeof(double));
-        ic_i_tmp[i] = (double*) calloc(totalstim, sizeof(double));
+    for (int e = 0; e < 2; e++) {
+        for (int i = 0; i < n_chan; i++) {
+            ic_i[e][i] = (double*) calloc(totalstim, sizeof(double));
+            ic_e_tmp[e][i] = (double*) calloc(totalstim, sizeof(double));
+            ic_i_tmp[e][i] = (double*) calloc(totalstim, sizeof(double));
+        }
     }
     double ic_tau_e_tmp = 0.0;
     double ic_tau_i_tmp = 0.0;
@@ -1323,173 +1344,178 @@ void model_binaural(
     }
 
     /* Calculate middle-ear output */
-    middle_ear(px, tdres, totalstim, species, meout);
+    for (int e = 0; e < 2; e++) {
+        middle_ear(px[e], tdres, totalstim, species, meout[e]);
+    }
 
     /* Compute the model, looping over time steps */
     for (int n=0; n<totalstim; n++) {
-        /* Looping over channels/CFs */
-        for (int c=0; c < n_chan; c++) {
-            /* Delay input signal according to delay time for this channel */
-            if ((n - len_delay_latency[c]) < 0) {
-                me_curr = 0.0;
-            } else {
-                me_curr = meout[n - len_delay_latency[c]]; 
-            }
-
-            /* Pass signal through control-path filter */
-            wbout1 = WbGammaTone(me_curr, tdres, centerfreq[c], n, tauwb[c], wbgain[c], 3, 
-                                 &wbphase[c], wbgtf[c], wbgtfl[c]);
-            wbout = pow((tauwb[c]/TauWBMax[c]), 3) * wbout1 * 10e3 *__max(1, cf[c]/5e3);
-
-            /* Pre-compute scaled gain factor for this channel and time step */
-            if (!((n == 0) | (((n - len_moc_delay) < 0)))) {
-                gaininst = gainpostmix[c][n-len_moc_delay];
-            }
-
-            /* Determine time constants for cochlear filters */
-            Get_taubm(c, cf, species, Taumax, bmTaumax, bmTaumin, ratiobm);
-            if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
-                bmTaubm[c] = cohc[c]*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
-            } else {                                       // Otherwise use gain[c][n - len_moc_delay]
-                bmTaubm[c] = gaininst*(bmTaumax[c]-bmTaumin[c]) + bmTaumin[c];
-            }
-            tauwb[c] = TauWBMax[c] + (bmTaubm[c]-bmTaumax[c]) * 
-                (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
-            wbgain[c] = gain_groupdelay(tdres, centerfreq[c], cf[c], tauwb[c], &grdelay[c]);
-
-            /* Pass the control-path signal through the OHC model (nonlinear transduction and 
-            lowpass filtering) */
-            ohcnonlinout = Boltzman(wbout, 7.0, 12.0, 5.0, 5.0);
-            ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2, ohc[c], ohcl[c]);
-            controlout[c][n] = NLafterohc(ohcout, bmTaumin[c], bmTaumax[c], 7.0);
-
-            /* Determine time constant and shift of C1 filter poles based on output of OHCs 
-               If moc_fix_gain == true, then we simply use the gain factor specified by 
-               gain[c][n] to determine tauc1
-               If moc_fix_gain == false, we use either cohc[c] or a delayed copy of gain[c][n]
-             */
-            if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
-                tauc1 = cohc[c]*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
-            } else {                                       // Otherwise use gain[c][n - len_moc_delay]
-                tauc1 = gaininst*(controlout[c][n]-bmTaumin[c]) + bmTaumin[c];
-            }
-            rsigma = 1/tauc1 - 1/bmTaumax[c];
-            tauwb[c] = TauWBMax[c] + (tauc1-bmTaumax[c]) * 
-                (TauWBMax[c]-TauWBMin[c])/(bmTaumax[c]-bmTaumin[c]);
-
-            /* Do some sort of groupdelay manipulation??? TODO Clarify */
-            wb_gain = gain_groupdelay(tdres, centerfreq[c], cf[c], tauwb[c], &grdelay[c]);
-            if ((grdelay[c]+n) < totalstim) {
-                tmpgain[c][grdelay[c]+n] = wb_gain;
-            }
-            if (tmpgain[c][n] == 0) {
-                tmpgain[c][n] = lasttmpgain[c];
-            }
-            wbgain[c] = tmpgain[c][n];
-            lasttmpgain[c] = wbgain[c];
-
-            /* Apply signal-path C1 filter */
-            c1out[c][n] = C1ChirpFilt(me_curr, tdres, cf[c], n, bmTaumax[c], rsigma, 
-                                      &C1gain_norm[c], &C1initphase[c], C1input[c], 
-                                      C1output[c]);
-
-            /* Apply parallel-path C2 filter */
-            c2out[c][n] = C2ChirpFilt(me_curr, tdres, cf[c], n, bmTaumax[c], 1/ratiobm[c], 
-                                      &C2gain_norm[c], &C2initphase[c], C2input[c], 
-                                      C2output[c]);
-
-            /* Apply IHC model: NL input-output function and lowpass filtering */
-            c1vihctmp  = NLogarithm(cihc[c]*c1out[c][n], 0.1, 3.0, cf[c]);
-            c2vihctmp = -NLogarithm(c2out[c][n]*fabs(c2out[c][n])*cf[c]/10*cf[c]/2e3, 0.2, 
-                                    1.0, cf[c]); /* C2 transduction output */
-            ihcout[c][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[c], 
-                                      ihcl[c]);
-
-            /* Loop over fiber types */
-            for (int t = 0; t < n_fiber_type; t++) {
-                /* Apply Westerman and Smith three-store-diffusion adaptation */
-                apply_ws1988_adaptation(ihcout[c], n, synstrength[t][c], synslope[t][c], 
-                                        VI[t][c], PG[t][c], VL[t][c], PL[t][c], CG[t][c], 
-                                        tdres, &CI[t][c], &CL[t][c], &CIlast[t][c],
-                                        expout[t][c]);
-
-                /* Apply power-law adaptation */
-                if (powerlaw_mode == 1) {
-                    apply_powerlaw_adaptation(expout[t][c], randNums[t][c], &I1[t][c], 
-                                            &I2[t][c], n, alpha1, beta1, alpha2, beta2, tdres,
-                                            sout1[t][c], sout2[t][c]);
-                } else if (powerlaw_mode == 2) {
-                    apply_powerlaw_adaptation_iir(expout[t][c], randNums[t][c], &I1[t][c],
-                        &I2[t][c], E1[t][c], E2[t][c], D1[t][c], D2[t][c], w_slow, w_fast, n_process, n,
-                        alpha1, alpha2, tdres, sout1[t][c], sout2[t][c]);
+        /* Looping over ears */
+        for (int e = 0; e < 2; e++) {
+            /* Looping over channels/CFs */
+            for (int c=0; c < n_chan; c++) {
+                /* Delay input signal according to delay time for this channel */
+                if ((n - len_delay_latency[e][c]) < 0) {
+                    me_curr = 0.0;
+                } else {
+                    me_curr = meout[e][n - len_delay_latency[e][c]]; 
                 }
-                synout[t][c][n] = sout1[t][c][n] + sout2[t][c][n];
 
-                /* Compute instantaneous rate from synapse output */
-                anrateout[t][c][n] = synout[t][c][n] / (1.0 + 0.75e-3 * synout[t][c][n]);
-            }
+                /* Pass signal through control-path filter */
+                wbout1 = WbGammaTone(me_curr, tdres, centerfreq[e][c], n, tauwb[e][c], wbgain[e][c], 3, 
+                                    &wbphase[e][c], wbgtf[e][c], wbgtfl[e][c]);
+                wbout = pow((tauwb[e][c]/TauWBMax[e][c]), 3) * wbout1 * 10e3 *__max(1, cf[c]/5e3);
 
-            /* Delay rate output for SFIE cochlear nucleus inhibitory pathway */
-            delay_signal(anrateout[0][c], n, cn_len_delay, cn_i[c]);
+                /* Pre-compute scaled gain factor for this channel and time step */
+                if (!((n == 0) | (((n - len_moc_delay) < 0)))) {
+                    gaininst = gainpostmix[e][c][n-len_moc_delay];
+                }
 
-            /* Apply SFIE filters for cochlear nucleus stage */
-            filter_alpha(anrateout[0][c], n, 1/tdres, cn_B_e, cn_A_e, cn_e_tmp[c]);
-            filter_alpha(cn_i[c], n, 1/tdres, cn_B_i, cn_A_i, cn_i_tmp[c]);
+                /* Determine time constants for cochlear filters */
+                Get_taubm(c, cf, species, Taumax[e], bmTaumax[e], bmTaumin[e], ratiobm[e]);
+                if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
+                    bmTaubm[e][c] = cohc[e][c]*(bmTaumax[e][c]-bmTaumin[e][c]) + bmTaumin[e][c];
+                } else {                                       // Otherwise use gain[c][n - len_moc_delay]
+                    bmTaubm[e][c] = gaininst*(bmTaumax[e][c]-bmTaumin[e][c]) + bmTaumin[e][c];
+                }
+                tauwb[e][c] = TauWBMax[e][c] + (bmTaubm[e][c]-bmTaumax[e][c]) * 
+                    (TauWBMax[e][c]-TauWBMin[e][c])/(bmTaumax[e][c]-bmTaumin[e][c]);
+                wbgain[e][c] = gain_groupdelay(tdres, centerfreq[e][c], cf[c], tauwb[e][c], &grdelay[e][c]);
 
-            /* Compute output signal and rectify */
-            cntmp = tdres * (cn_amp*cn_e_tmp[c][n] - (cn_amp*cn_inh)*cn_i_tmp[c][n]);
-            cnout[c][n] = hw_rectify(cntmp);
+                /* Pass the control-path signal through the OHC model (nonlinear transduction and 
+                lowpass filtering) */
+                ohcnonlinout = Boltzman(wbout, 7.0, 12.0, 5.0, 5.0);
+                ohcout = OhcLowPass(ohcnonlinout, tdres, 600, n, 1.0, 2, ohc[e][c], ohcl[e][c]);
+                controlout[e][c][n] = NLafterohc(ohcout, bmTaumin[e][c], bmTaumax[e][c], 7.0);
 
-            /* Update IC parameters based on CF */
-            if (cf[c]/4.0 > 64.0) {
-                /* Since this is a high CF (cf/4 > 64 Hz), we merely update back to ref values */
-                ic_len_delay = (int) floor(ic_delay * 1/tdres);
-                get_alpha_norm(ic_tau_e, 1/tdres, 1.0, ic_B_e, ic_A_e);
-                get_alpha_norm(ic_tau_i, 1/tdres, 1.0, ic_B_i, ic_A_i);
+                /* Determine time constant and shift of C1 filter poles based on output of OHCs 
+                If moc_fix_gain == true, then we simply use the gain factor specified by 
+                gain[c][n] to determine tauc1
+                If moc_fix_gain == false, we use either cohc[c] or a delayed copy of gain[c][n]
+                */
+                if ((n == 0) | (((n - len_moc_delay) < 0))) {  // On first sample or if we have not exceeded delay, use cohc[c]
+                    tauc1 = cohc[e][c]*(controlout[e][c][n]-bmTaumin[e][c]) + bmTaumin[e][c];
+                } else {                                       // Otherwise use gain[c][n - len_moc_delay]
+                    tauc1 = gaininst*(controlout[e][c][n]-bmTaumin[e][c]) + bmTaumin[e][c];
+                }
+                rsigma = 1/tauc1 - 1/bmTaumax[e][c];
+                tauwb[e][c] = TauWBMax[e][c] + (tauc1-bmTaumax[e][c]) * 
+                    (TauWBMax[e][c]-TauWBMin[e][c])/(bmTaumax[e][c]-bmTaumin[e][c]);
 
-           } else {
-                /* Since this is a low CF channel (cf/4 < 64 Hz), we need to calc temp values of IC params */
-                ic_tau_e_tmp = 1.0 / (10.0 * cf[c]/4.0);
-                ic_tau_i_tmp = ic_tau_e_tmp * 1.5;
-                ic_delay_tmp = ic_tau_e_tmp * 2.0;
+                /* Do some sort of groupdelay manipulation??? TODO Clarify */
+                wb_gain = gain_groupdelay(tdres, centerfreq[e][c], cf[c], tauwb[e][c], &grdelay[e][c]);
+                if ((grdelay[e][c]+n) < totalstim) {
+                    tmpgain[e][c][grdelay[e][c]+n] = wb_gain;
+                }
+                if (tmpgain[e][c][n] == 0) {
+                    tmpgain[e][c][n] = lasttmpgain[e][c];
+                }
+                wbgain[e][c] = tmpgain[e][c][n];
+                lasttmpgain[e][c] = wbgain[e][c];
 
-                /* Update IC delay value and parameters values */
-                /* Since this is a high CF (cf/4 > 64 Hz), we merely update back to ref values */
-                ic_len_delay = (int) floor(ic_delay_tmp * 1/tdres);
-                get_alpha_norm(ic_tau_e_tmp, 1/tdres, 1.0, ic_B_e, ic_A_e);
-                get_alpha_norm(ic_tau_i_tmp, 1/tdres, 1.0, ic_B_i, ic_A_i);
-           }
+                /* Apply signal-path C1 filter */
+                c1out[e][c][n] = C1ChirpFilt(me_curr, tdres, cf[c], n, bmTaumax[e][c], rsigma, 
+                                        &C1gain_norm[e][c], &C1initphase[e][c], C1input[e][c], 
+                                        C1output[e][c]);
 
-            /* Delay CN output for SFIE inferior colliculus inhibitory pathway */
-            delay_signal(cnout[c], n, ic_len_delay, ic_i[c]);
+                /* Apply parallel-path C2 filter */
+                c2out[e][c][n] = C2ChirpFilt(me_curr, tdres, cf[c], n, bmTaumax[e][c], 1/ratiobm[e][c], 
+                                        &C2gain_norm[e][c], &C2initphase[e][c], C2input[e][c], 
+                                        C2output[e][c]);
 
-            /* Apply SFIE filters for inferior colliculus stage */
-            filter_alpha(cnout[c], n, 1/tdres, ic_B_e, ic_A_e, ic_e_tmp[c]);
-            filter_alpha(ic_i[c], n, 1/tdres, ic_B_i, ic_A_i, ic_i_tmp[c]);
+                /* Apply IHC model: NL input-output function and lowpass filtering */
+                c1vihctmp  = NLogarithm(cihc[e][c]*c1out[e][c][n], 0.1, 3.0, cf[c]);
+                c2vihctmp = -NLogarithm(c2out[e][c][n]*fabs(c2out[e][c][n])*cf[c]/10*cf[c]/2e3, 0.2, 
+                                        1.0, cf[c]); /* C2 transduction output */
+                ihcout[e][c][n] = IhcLowPass(c1vihctmp+c2vihctmp, tdres, 3000, n, 1.0, 7, ihc[e][c], 
+                                        ihcl[e][c]);
 
-            /* Compute output signal and rectify */
-            ictmp = tdres * (ic_amp*ic_e_tmp[c][n] - (ic_amp*ic_inh)*ic_i_tmp[c][n]);
-            icout[c][n] = hw_rectify(ictmp);
+                /* Loop over fiber types */
+                for (int t = 0; t < n_fiber_type; t++) {
+                    /* Apply Westerman and Smith three-store-diffusion adaptation */
+                    apply_ws1988_adaptation(ihcout[e][c], n, synstrength[e][t][c], synslope[e][t][c], 
+                                            VI[e][t][c], PG[e][t][c], VL[e][t][c], PL[e][t][c], CG[e][t][c], 
+                                            tdres, &CI[e][t][c], &CL[e][t][c], &CIlast[e][t][c],
+                                            expout[t][e][c]);
 
-            /* Lowpass filter LSR and IC responses to generate WDR-MOC and IC-MOC rates */
-            if (n < len_settle) { 
-                mocwdr[c][n] = 0.0;
-                mocic[c][n] = 0.0;
+                    /* Apply power-law adaptation */
+                    if (powerlaw_mode == 1) {
+                        apply_powerlaw_adaptation(expout[t][e][c], randNums[t][e][c], &I1[e][t][c],
+                                                &I2[e][t][c], n, alpha1, beta1, alpha2, beta2, tdres,
+                                                sout1[t][e][c], sout2[t][e][c]);
+                    } else if (powerlaw_mode == 2) {
+                        apply_powerlaw_adaptation_iir(expout[t][e][c], randNums[t][e][c], &I1[e][t][c],
+                            &I2[e][t][c], E1[e][t][c], E2[e][t][c], D1[e][t][c], D2[e][t][c], w_slow, w_fast, n_process, n,
+                            alpha1, alpha2, tdres, sout1[t][e][c], sout2[t][e][c]);
+                    }
+                    synout[t][e][c][n] = sout1[t][e][c][n] + sout2[t][e][c][n];
+
+                    /* Compute instantaneous rate from synapse output */
+                    anrateout[t][e][c][n] = synout[t][e][c][n] / (1.0 + 0.75e-3 * synout[t][e][c][n]);
+                }
+
+                /* Delay rate output for SFIE cochlear nucleus inhibitory pathway */
+                delay_signal(anrateout[0][e][c], n, cn_len_delay, cn_i[e][c]);
+
+                /* Apply SFIE filters for cochlear nucleus stage */
+                filter_alpha(anrateout[0][e][c], n, 1/tdres, cn_B_e, cn_A_e, cn_e_tmp[e][c]);
+                filter_alpha(cn_i[e][c], n, 1/tdres, cn_B_i, cn_A_i, cn_i_tmp[e][c]);
+
+                /* Compute output signal and rectify */
+                cntmp = tdres * (cn_amp*cn_e_tmp[e][c][n] - (cn_amp*cn_inh)*cn_i_tmp[e][c][n]);
+                cnout[e][c][n] = hw_rectify(cntmp);
+
+                /* Update IC parameters based on CF */
+                if (cf[c]/4.0 > 64.0) {
+                    /* Since this is a high CF (cf/4 > 64 Hz), we merely update back to ref values */
+                    ic_len_delay = (int) floor(ic_delay * 1/tdres);
+                    get_alpha_norm(ic_tau_e, 1/tdres, 1.0, ic_B_e, ic_A_e);
+                    get_alpha_norm(ic_tau_i, 1/tdres, 1.0, ic_B_i, ic_A_i);
+
             } else {
-                filter_lowpass_iir(anrateout_lsr[c], n, moc_d, mocwdr[c]);
-                filter_lowpass_iir(icout[c], n, moc_d, mocic[c]);
+                    /* Since this is a low CF channel (cf/4 < 64 Hz), we need to calc temp values of IC params */
+                    ic_tau_e_tmp = 1.0 / (10.0 * cf[c]/4.0);
+                    ic_tau_i_tmp = ic_tau_e_tmp * 1.5;
+                    ic_delay_tmp = ic_tau_e_tmp * 2.0;
+
+                    /* Update IC delay value and parameters values */
+                    /* Since this is a high CF (cf/4 > 64 Hz), we merely update back to ref values */
+                    ic_len_delay = (int) floor(ic_delay_tmp * 1/tdres);
+                    get_alpha_norm(ic_tau_e_tmp, 1/tdres, 1.0, ic_B_e, ic_A_e);
+                    get_alpha_norm(ic_tau_i_tmp, 1/tdres, 1.0, ic_B_i, ic_A_i);
             }
 
-            /* Below, we transform IC and WDR rates in this current channel into a 
-               "gain factor", which will influence subsequent cochlear gain. In brief,
-               lowpass-filtered IC rates (mocic) and lowpass-filtered LSR rates (mocwdr)
-               are scaled and summed before being passed through a single input-output
-               nonlinearity that maps rates (sp/s) a to gain factor in [0, 1]. 
-             */
-            if (!moc_fix_gain) {
-                gain[c][n] = cohc[c] * moc_nonlinearity(moc_weight[c] * mocwdr[c][n], moc_beta[c], moc_offset[c], moc_maxval, moc_minval);
-            }
-        } // End main channel loop
+                /* Delay CN output for SFIE inferior colliculus inhibitory pathway */
+                delay_signal(cnout[e][c], n, ic_len_delay, ic_i[e][c]);
+
+                /* Apply SFIE filters for inferior colliculus stage */
+                filter_alpha(cnout[e][c], n, 1/tdres, ic_B_e, ic_A_e, ic_e_tmp[e][c]);
+                filter_alpha(ic_i[e][c], n, 1/tdres, ic_B_i, ic_A_i, ic_i_tmp[e][c]);
+
+                /* Compute output signal and rectify */
+                ictmp = tdres * (ic_amp*ic_e_tmp[e][c][n] - (ic_amp*ic_inh)*ic_i_tmp[e][c][n]);
+                icout[e][c][n] = hw_rectify(ictmp);
+
+                /* Lowpass filter LSR and IC responses to generate WDR-MOC and IC-MOC rates */
+                if (n < len_settle) { 
+                    mocwdr[e][c][n] = 0.0;
+                    mocic[e][c][n] = 0.0;
+                } else {
+                    filter_lowpass_iir(anrateout_lsr[e][c], n, moc_d, mocwdr[e][c]);
+                    filter_lowpass_iir(icout[e][c], n, moc_d, mocic[e][c]);
+                }
+
+                /* Below, we transform IC and WDR rates in this current channel into a 
+                "gain factor", which will influence subsequent cochlear gain. In brief,
+                lowpass-filtered IC rates (mocic) and lowpass-filtered LSR rates (mocwdr)
+                are scaled and summed before being passed through a single input-output
+                nonlinearity that maps rates (sp/s) a to gain factor in [0, 1]. 
+                */
+                if (!moc_fix_gain) {
+                    gain[e][c][n] = cohc[e][c] * moc_nonlinearity(moc_weight[c] * mocwdr[e][c][n], moc_beta[c], moc_offset[c], moc_maxval, moc_minval);
+                }
+            } // End main channel loop
+        } // End main ear loop
 
         /* Loop over channels/CFs again once all channels are done being calculated for this 
            time step. In this next channel loop, we mix gain signals across channels. This
@@ -1501,51 +1527,67 @@ void model_binaural(
            matrix gainpostmix (i.e., gain after mixing across channels).
          */
         if (moc_width > 0.0) {
-            for (int c=0; c < n_chan; c++) {
-                double weight_total = 0.0;
-                for (int subc = 0; subc < n_chan; subc++) {
-                    gainpostmix[c][n] = gainpostmix[c][n] * pow(gain[subc][n], moc_wb_weights[c][subc]);
-                    weight_total = weight_total + moc_wb_weights[c][subc];
+            for (int e=0; e < 2; e ++) {
+                for (int c=0; c < n_chan; c++) {
+                    double weight_total = 0.0;
+                    for (int subc = 0; subc < n_chan; subc++) {
+                        gainpostmix[e][c][n] = gainpostmix[e][c][n] * pow(gain[e][subc][n], moc_wb_weights[c][subc]);
+                        weight_total = weight_total + moc_wb_weights[c][subc];
+                    }
+                    gainpostmix[e][c][n] = pow(gainpostmix[e][c][n], 1 / weight_total);
                 }
-                gainpostmix[c][n] = pow(gainpostmix[c][n], 1 / weight_total);
             }
         } else {
-            for (int c=0; c < n_chan; c++) {
-                gainpostmix[c][n] = gain[c][n];
+            for (int e = 0; e < 2; e++) {
+                for (int c=0; c < n_chan; c++) {
+                    gainpostmix[e][c][n] = gain[e][c][n];
+                }
             }
         }
     } // end main time loop
 
     /* Free dynamic memory */
-    for (int i = 0; i < n_chan; i++) {
-        free(tmpgain[i]);
-        free(cn_i[i]);
-        free(cn_e_tmp[i]);
-        free(cn_i_tmp[i]);
-        free(ic_i[i]);
-        free(ic_e_tmp[i]);
-        free(ic_i_tmp[i]);
-    }
-    free(meout);
-    for (int i = 0; i < n_chan; i++) {
-        free(wbgtf[i]);
-        free(wbgtfl[i]);
-        free(ohc[i]);
-        free(ohcl[i]);
-        free(ihc[i]);
-        free(ihcl[i]);
-    }
-    for (int i = 0; i < n_chan; i++) {
-        for (int j = 0; j < 12; j++) {
-            free(C1input[i][j]);
-            free(C1output[i][j]);
-            free(C2input[i][j]);
-            free(C2output[i][j]);
+    for (int e = 0; e < 2; e++) {
+        for (int i = 0; i < n_chan; i++) {
+            free(tmpgain[e][i]);
+            free(cn_i[e][i]);
+            free(cn_e_tmp[e][i]);
+            free(cn_i_tmp[e][i]);
+            free(ic_i[e][i]);
+            free(ic_e_tmp[e][i]);
+            free(ic_i_tmp[e][i]);
         }
-        free(C1input[i]);
-        free(C1output[i]);
-        free(C2input[i]);
-        free(C2output[i]);
+    }
+    for (int e = 0; e < 2; e++) {
+        free(meout[e]);
+    }
+    for (int e = 0; e < 2; e++) {
+        for (int i = 0; i < n_chan; i++) {
+            free(wbgtf[e][i]);
+            free(wbgtfl[e][i]);
+            free(ohc[e][i]);
+            free(ohcl[e][i]);
+            free(ihc[e][i]);
+            free(ihcl[e][i]);
+        }
+    }
+    for (int e = 0; e < 2; e++) {
+        for (int i = 0; i < n_chan; i++) {
+            for (int j = 0; j < 12; j++) {
+                free(C1input[e][i][j]);
+                free(C1output[e][i][j]);
+                free(C2input[e][i][j]);
+                free(C2output[e][i][j]);
+            }
+            free(C1input[e][i]);
+            free(C1output[e][i]);
+            free(C2input[e][i]);
+            free(C2output[e][i]);
+        }
+        free(C1input[e]);
+        free(C1output[e]);
+        free(C2input[e]);
+        free(C2output[e]);
     }
     free(C1input);
     free(C1output);

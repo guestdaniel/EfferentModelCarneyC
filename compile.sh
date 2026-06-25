@@ -6,4 +6,4 @@ gcc -c -Wall -fPIC -O3 adaptation.c
 gcc -c -Wall -fPIC -O3 model.c
 
 # Step 2: Compile resulting objects together into a shared library 
-gcc -shared -o libgfc2023.so complex.o sfie.o adaptation.o model.o
+gcc -shared -o libgfc2026.so complex.o sfie.o adaptation.o model.o
