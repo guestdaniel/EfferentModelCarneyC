@@ -1544,6 +1544,19 @@ void model_binaural(
                 }
             }
         }
+
+        /* TODO: Decide if we want to model innervation crossing the midline 
+           from CN to MOC?
+         */
+
+        /* Loop over channels/CFs again to mix signals across ears
+         */
+        for (int c = 0; c < n_chan; c++) {
+            float premix_left = gainpostmix[0][c][n];
+            float premix_right = gainpostmix[1][c][n];
+            gainpostmix[0][c][n] = pow(premix_left, 2.0/3.0) * pow(premix_right, 1.0/3.0);
+            gainpostmix[1][c][n] = pow(premix_left, 1.0/3.0) * pow(premix_right, 2.0/3.0);
+        }
     } // end main time loop
 
     /* Free dynamic memory */
