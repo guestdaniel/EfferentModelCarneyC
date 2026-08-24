@@ -8,3 +8,4 @@ analysis_function.txt
 *.out
 *.gcov
 *.exe
+*.dylib
