@@ -1026,7 +1026,7 @@ void Get_tauwb(int idx_chan, double *cf, int species, int order, double *taumax,
     if (species == 1) {
         Q10 = pow(10, 0.4708*log10(cf[idx_chan]/1e3) + 0.4664);  // pg 1451, top left, Zilany and Bruce (2006)
     }
-    if (species==2) {
+    else if (species==2) {
         Q10 = pow((cf[idx_chan]/1000), 0.3) * 12.7*0.505 + 0.2085;
     }
     else {
